@@ -109,7 +109,6 @@ class ApplicationControllerTest {
             .andExpect(jsonPath("$.error").value("Deployment in progress: myApp"))
     }
 
-
     @Test
     fun `handleAWSException should return correct error`() {
         `when`(applicationService.invoke("myApp"))
