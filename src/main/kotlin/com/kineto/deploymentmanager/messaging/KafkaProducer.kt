@@ -14,7 +14,7 @@ class KafkaProducer(
     private val kafkaTemplate: KafkaTemplate<String, ApplicationEvent>,
 ) {
     @Transactional
-    fun sendDeploymentEvent(
+    fun sendApplicationEvent(
         key: String,
         applicationEvent: ApplicationEvent
     ) {

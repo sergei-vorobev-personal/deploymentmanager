@@ -4,10 +4,13 @@ import com.kineto.deploymentmanager.exception.APIException
 import com.kineto.deploymentmanager.exception.AWSException
 import com.kineto.deploymentmanager.model.ApplicationState
 import com.kineto.deploymentmanager.repository.ApplicationRepository
+import mu.KotlinLogging
 import org.springframework.data.repository.findByIdOrNull
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.Instant.now
+
+private val log = KotlinLogging.logger {}
 
 @Service
 class DeploymentService(
@@ -28,9 +31,11 @@ class DeploymentService(
                 s3Bucket = app.s3Bucket,
             )
             app.state = lambdaState
+            log.info { "Application ${app.id} created successfully. State: $lambdaState" }
         } catch (e: AWSException) {
             app.state = ApplicationState.CREATE_FAILED
             app.error = e.message
+            log.error("Error occurred during application ${app.id} creation.") { e }
         }
         app.updatedAt = now()
         applicationRepository.save(app)
@@ -49,9 +54,11 @@ class DeploymentService(
                 s3Bucket = app.s3Bucket,
             )
             app.state = lambdaState
+            log.info { "Application ${app.id} updated successfully. State: $lambdaState" }
         } catch (e: AWSException) {
             app.state = ApplicationState.UPDATE_FAILED
             app.error = e.message
+            log.error("Error occurred during application ${app.id} update.") { e }
         }
         app.updatedAt = now()
         applicationRepository.save(app)
@@ -66,9 +73,11 @@ class DeploymentService(
         try {
             awsFacadeService.deleteLambda(app.functionName)
             app.state = ApplicationState.DELETED
+            log.info { "Application ${app.id} deleted successfully." }
         } catch (e: AWSException) {
             app.state = ApplicationState.DELETE_FAILED
             app.error = e.message
+            log.error("Error occurred during application ${app.id} delete.") { e }
         }
         app.updatedAt = now()
 
