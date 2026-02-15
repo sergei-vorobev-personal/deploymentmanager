@@ -1,6 +1,41 @@
 spring:
   application:
     name: deploymentmanager
+  datasource:
+    url: ${JDBC_URL}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+    jpa:
+      hibernate:
+        ddl-auto: validate
+  docker:
+    compose:
+      enabled: true
+      lifecycle-management: start_and_stop
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+    consumer:
+      group-id: ${KAFKA_CONSUMER_GROUP_ID}
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "*"
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+
+kafka:
+  topic: ${KAFKA_TOPIC_NAME}
+
+aws:
+  endpoint: ${AWS_ENDPOINT}
+  access-key: ${ACCESS_KEY}
+  access-key-id: ${ACCESS_KEY_ID}
+  region: ${AWS_REGION}
+  lambda-role-arn: ${AWS_LAMBDA_ROLE_ARN}
+  bucket: ${S3_BUCKET_NAME}
+
 
 management:
   endpoints:
