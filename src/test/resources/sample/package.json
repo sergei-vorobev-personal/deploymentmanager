@@ -1,0 +1,9 @@
+{
+  "name": "hello-lambda",
+  "version": "1.0.0",
+  "main": "index.js",
+  "dependencies": {
+    "aws-serverless-express": "^3.4.0",
+    "express": "^4.18.2"
+  }
+}

@@ -1,0 +1,135 @@
+package com.kineto.deploymentmanager.service
+
+import com.kineto.deploymentmanager.dto.GetStatusResponse
+import com.kineto.deploymentmanager.exception.APIException
+import com.kineto.deploymentmanager.messaging.ApplicationEvent
+import com.kineto.deploymentmanager.messaging.ApplicationEventType
+import com.kineto.deploymentmanager.messaging.KafkaProducer
+import com.kineto.deploymentmanager.model.Application
+import com.kineto.deploymentmanager.model.ApplicationState.*
+import com.kineto.deploymentmanager.repository.ApplicationRepository
+import org.springframework.data.repository.findByIdOrNull
+import org.springframework.http.HttpHeaders
+import org.springframework.http.HttpStatus
+import org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE
+import org.springframework.http.ResponseEntity
+import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
+import software.amazon.awssdk.http.HttpStatusCode.NOT_FOUND
+import java.util.*
+
+
+@Service
+class ApplicationService(
+    private val awsFacadeService: AWSFacadeService,
+    private val kafkaProducer: KafkaProducer,
+    private val applicationRepository: ApplicationRepository,
+) {
+    fun invoke(
+        name: String,
+    ): ResponseEntity<String> {
+        val app = applicationRepository.findByIdOrNull(name) ?: throw APIException.ApplicationNotFoundException(name)
+        if (app.state == DELETED || app.state == DELETE_REQUESTED) {
+            return ResponseEntity
+                .status(NOT_FOUND)
+                .body("Application $name has been deleted")
+        }
+        if (app.state == FAILED) {
+            return ResponseEntity
+                .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body("Application $name is not available")
+        }
+        if (app.state != ACTIVE) {
+            return ResponseEntity
+                .status(SERVICE_UNAVAILABLE)
+                .body("Application $name is not ready yet")
+        }
+        val lambdaResponse = awsFacadeService.invokeLambda(app.functionName)
+        val headers = HttpHeaders()
+        lambdaResponse.headers?.let { headers.setAll(it) }
+        val body = lambdaResponse.body
+        return ResponseEntity
+            .status(lambdaResponse.statusCode)
+            .headers(headers)
+            .body(body)
+    }
+
+    @Transactional
+    fun requestDeployment(
+        name: String,
+        s3Key: String,
+        s3Bucket: String,
+    ): GetStatusResponse {
+        val app = applicationRepository.findByIdOrNull(name) ?: applicationRepository.save(
+            Application(
+                id = name,
+                s3Key = s3Key,
+                s3Bucket = s3Bucket,
+                functionName = "${name}-${UUID.randomUUID()}",
+                state = NEW,
+            )
+        )
+        val (eventType, nextState) = when (app.state) {
+            NEW, DELETED, CREATE_FAILED, FAILED, INACTIVE -> ApplicationEventType.CREATE_REQUESTED to CREATE_REQUESTED
+            ACTIVE, UPDATE_FAILED -> ApplicationEventType.UPDATE_REQUESTED to UPDATE_REQUESTED
+            CREATE_REQUESTED, UPDATE_REQUESTED, DELETE_REQUESTED, PENDING -> throw APIException.DeploymentInProgressException(
+                name
+            )
+
+            DELETE_FAILED -> throw APIException.DeletionFailedException(name)
+        }
+        app.state = nextState
+        applicationRepository.save(app)
+
+        kafkaProducer.sendDeploymentEvent(
+            key = name,
+            applicationEvent = ApplicationEvent(app.id, eventType)
+        )
+        return GetStatusResponse(
+            name = app.id,
+            state = app.state,
+            updatedAt = app.updatedAt
+        )
+    }
+
+    @Transactional(readOnly = true)
+    fun getStatus(
+        name: String,
+    ): GetStatusResponse {
+        val app = applicationRepository.findByIdOrNull(name) ?: throw APIException.ApplicationNotFoundException(name)
+        return GetStatusResponse(
+            name = app.id,
+            state = app.state,
+            error = app.error,
+            updatedAt = app.updatedAt
+        )
+    }
+
+    @Transactional
+    fun requestDeletion(
+        name: String,
+    ): GetStatusResponse {
+        val app = applicationRepository.findByIdOrNull(name) ?: throw APIException.ApplicationNotFoundException(name)
+        if (app.state == DELETED || app.state == DELETE_REQUESTED) {
+            return GetStatusResponse(
+                name = app.id,
+                state = app.state,
+                updatedAt = app.updatedAt
+            )
+        }
+        kafkaProducer.sendDeploymentEvent(
+            key = name,
+            applicationEvent = ApplicationEvent(
+                applicationName = app.id,
+                type = ApplicationEventType.DELETE_REQUESTED
+            )
+        )
+        app.state = DELETE_REQUESTED
+        applicationRepository.save(app)
+        return GetStatusResponse(
+            name = app.id,
+            state = app.state,
+            updatedAt = app.updatedAt
+        )
+    }
+}

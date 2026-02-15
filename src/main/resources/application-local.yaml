@@ -1,0 +1,39 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/dm
+    username: dm
+    password: dm
+    jpa:
+      hibernate:
+        ddl-auto: validate
+      properties:
+        hibernate:
+          format_sql: true
+      show-sql: true
+  docker:
+    compose:
+      enabled: true
+      lifecycle-management: start_and_stop
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer:
+      group-id: deployment-manager-local
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "*"
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+
+kafka:
+  topic: dm-deployment-topic-local
+
+aws:
+  endpoint: http://localhost:4566
+  access-key: test
+  access-key-id: test
+  region: us-east-1
+  lambda-role-arn: "arn:aws:iam::000000000000:role/lambda-role"
+  bucket: deployments
