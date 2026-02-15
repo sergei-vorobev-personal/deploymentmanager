@@ -18,4 +18,10 @@ class GlobalExceptionHandler {
         return ResponseEntity.status(status)
             .body(mapOf("error" to ex.message))
     }
+
+    @ExceptionHandler(AWSException::class)
+    fun handleAWSException(ex: AWSException): ResponseEntity<Map<String, String>> {
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+            .body(mapOf("error" to ex.message))
+    }
 }
