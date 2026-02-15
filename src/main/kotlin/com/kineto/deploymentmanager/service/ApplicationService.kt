@@ -81,6 +81,7 @@ class ApplicationService(
             INACTIVE -> ApplicationEventType.CREATE_REQUESTED to CREATE_REQUESTED
 
             ACTIVE, UPDATE_FAILED -> ApplicationEventType.UPDATE_REQUESTED to UPDATE_REQUESTED
+
             CREATE_REQUESTED,
             UPDATE_REQUESTED,
             DELETE_REQUESTED,
