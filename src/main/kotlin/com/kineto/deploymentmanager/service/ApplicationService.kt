@@ -16,6 +16,7 @@ import org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE
 import org.springframework.http.ResponseEntity
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import org.springframework.util.MultiValueMap
 import software.amazon.awssdk.http.HttpStatusCode.NOT_FOUND
 import java.util.*
 
@@ -29,6 +30,7 @@ class ApplicationService(
 ) {
     fun invoke(
         name: String,
+        params: MultiValueMap<String, String>,
     ): ResponseEntity<String> {
         val app = applicationRepository.findByIdOrNull(name) ?: throw APIException.ApplicationNotFoundException(name)
         if (app.state == DELETED || app.state == DELETE_REQUESTED) {
@@ -46,8 +48,8 @@ class ApplicationService(
                 .status(SERVICE_UNAVAILABLE)
                 .body("Application $name is not ready yet")
         }
-        log.info { "Invoking Lambda function ${app.functionName} for application ${app.id}" }
-        val lambdaResponse = awsFacadeService.invokeLambda(app.functionName)
+        log.info { "Invoking Lambda function ${app.functionName} for application ${app.id} with parameters ${params}" }
+        val lambdaResponse = awsFacadeService.invokeLambda(app.functionName, params)
         val headers = HttpHeaders()
         lambdaResponse.headers?.let { headers.setAll(it) }
         val body = lambdaResponse.body

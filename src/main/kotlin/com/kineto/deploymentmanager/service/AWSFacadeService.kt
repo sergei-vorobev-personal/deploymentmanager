@@ -7,6 +7,8 @@ import com.kineto.deploymentmanager.exception.AWSException
 import com.kineto.deploymentmanager.model.ApplicationState
 import mu.KotlinLogging
 import org.springframework.stereotype.Service
+import org.springframework.util.MultiValueMap
+import software.amazon.awssdk.core.SdkBytes
 import software.amazon.awssdk.core.sync.RequestBody
 import software.amazon.awssdk.services.lambda.LambdaClient
 import software.amazon.awssdk.services.lambda.model.*
@@ -28,9 +30,13 @@ class AWSFacadeService(
 ) {
     fun invokeLambda(
         functionName: String,
+        params: MultiValueMap<String, String>,
     ): LambdaResponse {
         awsLambdaCall {
-            val response = lambdaClient.invoke { it.functionName(functionName) }
+            val response = lambdaClient.invoke {
+                it.functionName(functionName)
+                it.payload(SdkBytes.fromUtf8String(objectMapper.writeValueAsString(params)))
+            }
             val payload = response.payload().asUtf8String()
             log.debug("Function $functionName invocation response:") { payload }
             val lambdaResponse = objectMapper.readValue(payload, LambdaResponse::class.java)

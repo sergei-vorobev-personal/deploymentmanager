@@ -16,6 +16,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.*
+import org.springframework.util.MultiValueMapAdapter
 
 @WebMvcTest(ApplicationController::class)
 class ApplicationControllerTest {
@@ -31,10 +32,11 @@ class ApplicationControllerTest {
     @Test
     fun `invoke should return string from service`() {
         val appName = "myApp"
-        `when`(applicationService.invoke(appName))
+        val params = MultiValueMapAdapter(mapOf("param1" to listOf("paramValue")))
+        `when`(applicationService.invoke(appName, params))
             .thenReturn(ResponseEntity.ok("invoked"))
 
-        mockMvc.perform(get("/applications/$appName"))
+        mockMvc.perform(get("/applications/$appName?param1=paramValue"))
             .andExpect(status().isOk)
             .andExpect(content().string("invoked"))
     }
@@ -111,10 +113,11 @@ class ApplicationControllerTest {
 
     @Test
     fun `handleAWSException should return correct error`() {
-        `when`(applicationService.invoke("myApp"))
+        val params = MultiValueMapAdapter(mapOf("param1" to listOf("paramValue")))
+        `when`(applicationService.invoke("myApp", params))
             .thenThrow(AWSException.LambdaException("myApp"))
 
-        mockMvc.perform(get("/applications/myApp"))
+        mockMvc.perform(get("/applications/myApp?param1=paramValue"))
             .andExpect(status().isInternalServerError)
             .andExpect(jsonPath("$.error").value("AWS Lambda error: myApp"))
     }

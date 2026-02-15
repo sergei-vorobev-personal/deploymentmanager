@@ -21,6 +21,7 @@ import org.mockito.Mock
 import org.mockito.Mockito.*
 import org.mockito.junit.jupiter.MockitoExtension
 import org.springframework.http.HttpStatus
+import org.springframework.util.MultiValueMapAdapter
 import java.util.*
 
 @ExtendWith(MockitoExtension::class)
@@ -35,27 +36,31 @@ class ApplicationServiceTest(
     @Test
     fun `invoke calls awsFacadeService and returns Lambda response`() {
         val app = application(ACTIVE)
+        val params = MultiValueMapAdapter(mapOf("param1" to listOf("paramValue")))
         `when`(applicationRepository.findById("test-app")).thenReturn(Optional.of(app))
-        `when`(awsFacadeService.invokeLambda(app.functionName)).thenReturn(lambdaResponse(200, "ok"))
+        `when`(awsFacadeService.invokeLambda(app.functionName, params)).thenReturn(lambdaResponse(200, "ok"))
 
-        val response = applicationService.invoke("test-app")
+        val response =
+            applicationService.invoke("test-app", params)
 
         assertEquals(HttpStatus.OK, response.statusCode)
         assertEquals("ok", response.body)
         assertEquals(1, response.headers.size())
         assertEquals("application/json", response.headers["Content-Type"]!!.first())
 
-        verify(awsFacadeService).invokeLambda(app.functionName)
+        verify(awsFacadeService).invokeLambda(app.functionName, params)
         verifyNoMoreInteractions(awsFacadeService)
         verifyNoInteractions(kafkaProducer)
     }
 
     @Test
     fun `invoke throws exception when application not found`() {
+        val params = MultiValueMapAdapter(mapOf("param1" to listOf("paramValue")))
+
         `when`(applicationRepository.findById("test-app")).thenReturn(Optional.empty())
 
         val exception = assertThrows<APIException.ApplicationNotFoundException> {
-            applicationService.invoke("test-app")
+            applicationService.invoke("test-app", params)
         }
         assertEquals("Application test-app not found.", exception.message)
 
@@ -64,10 +69,12 @@ class ApplicationServiceTest(
 
     @Test
     fun `invoke returns 404 if application deleted`() {
+        val params = MultiValueMapAdapter(mapOf("param1" to listOf("paramValue")))
+
         `when`(applicationRepository.findById("test-app"))
             .thenReturn(Optional.of(application(DELETED)))
 
-        val response = applicationService.invoke("test-app")
+        val response = applicationService.invoke("test-app", params)
 
         assertEquals(HttpStatus.NOT_FOUND, response.statusCode)
         assertEquals(response.body!!, "Application test-app has been deleted")
@@ -77,10 +84,12 @@ class ApplicationServiceTest(
 
     @Test
     fun `invoke returns 503 if application not ready`() {
+        val params = MultiValueMapAdapter(mapOf("param1" to listOf("paramValue")))
+
         `when`(applicationRepository.findById("test-app"))
             .thenReturn(Optional.of(application(UPDATE_REQUESTED)))
 
-        val response = applicationService.invoke("test-app")
+        val response = applicationService.invoke("test-app", params)
 
         assertEquals(HttpStatus.SERVICE_UNAVAILABLE, response.statusCode)
         assertEquals(response.body!!, "Application test-app is not ready yet")
@@ -90,10 +99,12 @@ class ApplicationServiceTest(
 
     @Test
     fun `invoke returns 500 if application not available`() {
+        val params = MultiValueMapAdapter(mapOf("param1" to listOf("paramValue")))
+
         `when`(applicationRepository.findById("test-app"))
             .thenReturn(Optional.of(application(FAILED)))
 
-        val response = applicationService.invoke("test-app")
+        val response = applicationService.invoke("test-app", params)
 
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.statusCode)
         assertEquals(response.body!!, "Application test-app is not available")

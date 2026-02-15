@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.test.context.ActiveProfiles
+import org.springframework.util.MultiValueMapAdapter
 import org.springframework.web.multipart.MultipartFile
 import org.testcontainers.containers.DockerComposeContainer
 import org.testcontainers.junit.jupiter.Container
@@ -70,7 +71,10 @@ class ApplicationTest {
         assertEquals(ApplicationState.ACTIVE, updatedStatus?.state)
 
         // invoke
-        val lambdaResponseBody = applicationController.invoke(appName).body!!
+        val lambdaResponseBody = applicationController.invoke(
+            name = appName,
+            params = MultiValueMapAdapter(mapOf("param1" to listOf("paramValue")))
+        ).body!!
         assertEquals("Hello World from Lambda!", lambdaResponseBody)
 
         // delete
