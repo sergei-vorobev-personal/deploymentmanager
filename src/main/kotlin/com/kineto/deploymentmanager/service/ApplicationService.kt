@@ -66,7 +66,10 @@ class ApplicationService(
         s3Key: String,
         s3Bucket: String,
     ): GetStatusResponse {
-        val app = applicationRepository.findByIdOrNull(name) ?: applicationRepository.save(
+        val app = applicationRepository.findByIdOrNull(name)?.apply {
+            this.s3Key = s3Key
+            this.s3Bucket = s3Bucket
+        } ?: applicationRepository.save(
             Application(
                 id = name,
                 s3Key = s3Key,

@@ -16,6 +16,8 @@ import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.api.extension.ExtendWith
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.EnumSource
+import org.mockito.ArgumentCaptor
+import org.mockito.Captor
 import org.mockito.InjectMocks
 import org.mockito.Mock
 import org.mockito.Mockito.*
@@ -30,6 +32,9 @@ class ApplicationServiceTest(
     @param:Mock private val kafkaProducer: KafkaProducer,
     @param:Mock private val applicationRepository: ApplicationRepository,
 ) {
+    @Captor
+    lateinit var captor: ArgumentCaptor<Application>
+
     @InjectMocks
     private lateinit var applicationService: ApplicationService
 
@@ -136,8 +141,12 @@ class ApplicationServiceTest(
         assertEquals(CREATE_REQUESTED, response.state)
         verify(kafkaProducer)
             .sendApplicationEvent("test-app", ApplicationEvent("test-app", ApplicationEventType.CREATE_REQUESTED))
-
         verifyNoInteractions(awsFacadeService)
+        verify(applicationRepository).save(captor.capture())
+
+        val updatedApp = captor.value
+        assertEquals("key", updatedApp.s3Key)
+        assertEquals("bucket", updatedApp.s3Bucket)
     }
 
     @ParameterizedTest

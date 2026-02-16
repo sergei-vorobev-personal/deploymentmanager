@@ -39,7 +39,7 @@ class ApplicationTest {
 
     @Test
     fun `should upload file, create lambda, get status, update lambda, get status, invoke lambda and delete lambda`() {
-        val zipFile: MultipartFile = MultipartFileTestUtil.fromResource("sample/function.zip")
+        val zipFile: MultipartFile = MultipartFileTestUtil.fromResource("sample/helloworld.zip")
         val appName = "myApp"
         val s3Key = "s3Key"
         val s3Bucket = "deployments"
@@ -58,8 +58,20 @@ class ApplicationTest {
         }
         assertEquals(ApplicationState.ACTIVE, status?.state)
 
+        // invoke
+        val lambdaResponseBody = applicationController.invoke(
+            name = appName,
+            params = MultiValueMapAdapter(mapOf("param1" to listOf("paramValue")))
+        ).body!!
+        assertEquals("Hello World from Lambda!", lambdaResponseBody)
+
+        val updatedZipFile: MultipartFile = MultipartFileTestUtil.fromResource("sample/helloworld-updated.zip")
+        val updatedS3Key = "s3Key-1"
+        // upload new file
+        helperController.uploadZipToS3(updatedZipFile, updatedS3Key, s3Bucket)
+
         // update
-        val updateResponseBody = applicationController.deploy(appName, s3Key, s3Bucket).body!!
+        val updateResponseBody = applicationController.deploy(appName, updatedS3Key, s3Bucket).body!!
         assertEquals(ApplicationState.UPDATE_REQUESTED, updateResponseBody.state)
 
         var updatedStatus: GetStatusResponse? = null
@@ -70,12 +82,13 @@ class ApplicationTest {
         }
         assertEquals(ApplicationState.ACTIVE, updatedStatus?.state)
 
+
         // invoke
-        val lambdaResponseBody = applicationController.invoke(
+        val updatedLambdaResponseBody = applicationController.invoke(
             name = appName,
             params = MultiValueMapAdapter(mapOf("param1" to listOf("paramValue")))
         ).body!!
-        assertEquals("Hello World from Lambda!", lambdaResponseBody)
+        assertEquals("Hello World from Lambda! Updated!", updatedLambdaResponseBody)
 
         // delete
         val deleteResponseBody = applicationController.delete(appName).body!!
