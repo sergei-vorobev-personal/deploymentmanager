@@ -4,7 +4,6 @@ import com.kineto.deploymentmanager.dto.GetStatusResponse
 import com.kineto.deploymentmanager.service.ApplicationService
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
-import org.springframework.util.MultiValueMap
 import org.springframework.web.bind.annotation.*
 
 @RestController
@@ -14,10 +13,9 @@ class ApplicationController(
 ) {
 
     @GetMapping("/{name}")
-    fun invoke(
+    fun invokeLambda(
         @PathVariable("name") name: String,
-        @RequestParam params: MultiValueMap<String, String>
-    ): ResponseEntity<String> = applicationService.invoke(name, params)
+    ): ResponseEntity<String> = applicationService.callLambda(name)
 
     @PostMapping
     fun deploy(

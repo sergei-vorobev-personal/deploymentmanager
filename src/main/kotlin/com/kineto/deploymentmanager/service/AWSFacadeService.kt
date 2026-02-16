@@ -1,21 +1,19 @@
 package com.kineto.deploymentmanager.service
 
 import com.kineto.deploymentmanager.config.AWSProperties
-import com.kineto.deploymentmanager.dto.LambdaResponse
+import com.kineto.deploymentmanager.dto.LambdaCreationResponse
 import com.kineto.deploymentmanager.exception.APIException
 import com.kineto.deploymentmanager.exception.AWSException
 import com.kineto.deploymentmanager.model.ApplicationState
 import mu.KotlinLogging
 import org.springframework.stereotype.Service
-import org.springframework.util.MultiValueMap
-import software.amazon.awssdk.core.SdkBytes
+import software.amazon.awssdk.core.exception.SdkException
 import software.amazon.awssdk.core.sync.RequestBody
 import software.amazon.awssdk.services.lambda.LambdaClient
 import software.amazon.awssdk.services.lambda.model.*
 import software.amazon.awssdk.services.s3.S3Client
 import software.amazon.awssdk.services.s3.model.PutObjectRequest
 import software.amazon.awssdk.services.s3.model.S3Exception
-import tools.jackson.databind.ObjectMapper
 import java.nio.file.Files
 import java.nio.file.Path
 
@@ -26,29 +24,14 @@ class AWSFacadeService(
     private val awsProperties: AWSProperties,
     private val lambdaClient: LambdaClient,
     private val s3Client: S3Client,
-    private val objectMapper: ObjectMapper,
 ) {
-    fun invokeLambda(
-        functionName: String,
-        params: MultiValueMap<String, String>,
-    ): LambdaResponse {
-        awsLambdaCall {
-            val response = lambdaClient.invoke {
-                it.functionName(functionName)
-                it.payload(SdkBytes.fromUtf8String(objectMapper.writeValueAsString(params)))
-            }
-            val payload = response.payload().asUtf8String()
-            log.debug("Function $functionName invocation response:") { payload }
-            val lambdaResponse = objectMapper.readValue(payload, LambdaResponse::class.java)
-            return lambdaResponse
-        }
-    }
 
     fun createLambda(
+        applicationName: String,
         functionName: String,
         s3Key: String,
         s3Bucket: String,
-    ): ApplicationState {
+    ): LambdaCreationResponse {
         awsLambdaCall {
             val waiter = lambdaClient.waiter()
             lambdaClient.createFunction {
@@ -56,6 +39,7 @@ class AWSFacadeService(
                     .runtime(Runtime.NODEJS18_X)
                     .role(awsProperties.lambdaRoleArn)
                     .handler(AWS_LAMBDA_HANDLER)
+                    .tags(mapOf("_custom_id_" to applicationName))
                     .code { codeBuilder ->
                         codeBuilder.s3Bucket(s3Bucket).s3Key(s3Key)
                     }
@@ -66,7 +50,15 @@ class AWSFacadeService(
             if (responseOrException.response().isPresent) {
                 val state = responseOrException.response().get().configuration().state()
                 log.info("Lambda function $functionName created, state: $state")
-                return ApplicationState.valueOf(state.name)
+                val urlConfig = lambdaClient.createFunctionUrlConfig {
+                    it.functionName(functionName)
+                    it.authType("NONE")
+                }
+                log.info("Function $functionName created with url config: ${urlConfig.functionUrl()}")
+                return LambdaCreationResponse(
+                    state = ApplicationState.valueOf(state.name),
+                    url = urlConfig.functionUrl()
+                )
             } else if (responseOrException.exception().isPresent) {
                 val exception = responseOrException.exception().get()
                 log.error("Lambda function $functionName creation failed.", exception)
@@ -74,7 +66,9 @@ class AWSFacadeService(
                 throw AWSException.LambdaException(error)
             } else {
                 log.error("Lambda function $functionName creation failed.")
-                return ApplicationState.CREATE_FAILED
+                return LambdaCreationResponse(
+                    state = ApplicationState.CREATE_FAILED,
+                )
             }
         }
     }
@@ -145,12 +139,16 @@ class AWSFacadeService(
             val message = e.message ?: "Unknown exception"
             log.error(message, e)
             throw APIException.InternalApplicationException(message)
+        } catch (e: SdkException) {
+            throw AWSException.SDKException(e.message ?: "Unknown SDK error")
         }
     }
 
     private inline fun <T> awsLambdaCall(block: () -> T): T {
         try {
             return block()
+        } catch (e: SdkException) {
+            throw AWSException.SDKException(e.message ?: "Unknown SDK error")
         } catch (e: LambdaException) {
             val message = e.awsErrorDetails()?.errorMessage() ?: e.message ?: "Unknown AWS error"
             log.error(message, e)

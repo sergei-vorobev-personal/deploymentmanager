@@ -1,7 +1,7 @@
 package com.kineto.deploymentmanager.exception
 
 sealed class AWSException(override val message: String) : RuntimeException(message) {
-    class LambdaQuotaExceededException(val reason: String) :
+    class LambdaQuotaExceededException(reason: String) :
         AWSException("AWS Lambda quota exceeded: $reason")
 
     class ResourceNotFoundException(message: String) :
@@ -18,6 +18,8 @@ sealed class AWSException(override val message: String) : RuntimeException(messa
 
     class S3Exception(message: String) :
         AWSException(message)
+
+    class SDKException(message: String) : AWSException(message)
 }
 
 sealed class APIException(override val message: String) : RuntimeException(message) {

@@ -1,10 +1,12 @@
 package com.kineto.deploymentmanager.config
 
 import io.micrometer.core.instrument.MeterRegistry
+import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider
+import software.amazon.awssdk.regions.Region
 import software.amazon.awssdk.services.lambda.LambdaClient
 import software.amazon.awssdk.services.s3.S3Client
 import java.net.URI
@@ -44,3 +46,13 @@ class AWSConfig(
         }
         .build()
 }
+
+@ConfigurationProperties(prefix = "aws")
+data class AWSProperties(
+    val endpoint: String,
+    val accessKeyId: String,
+    val accessKey: String,
+    val region: Region,
+    val lambdaRoleArn: String,
+    val bucket: String,
+)

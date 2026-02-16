@@ -25,17 +25,19 @@ class DeploymentService(
         val app = applicationRepository.findByIdOrNull(applicationName)
             ?: throw APIException.ApplicationNotFoundException(applicationName)
         try {
-            val lambdaState = awsFacadeService.createLambda(
+            val lambdaCreationResponse = awsFacadeService.createLambda(
+                applicationName = applicationName,
                 functionName = app.functionName,
                 s3Key = app.s3Key,
                 s3Bucket = app.s3Bucket,
             )
-            app.state = lambdaState
-            log.info { "Application ${app.id} created successfully. State: $lambdaState" }
+            app.state = lambdaCreationResponse.state
+            app.url = lambdaCreationResponse.url
+            log.info { "Application ${app.id} created successfully. State: $lambdaCreationResponse" }
         } catch (e: AWSException) {
             app.state = ApplicationState.CREATE_FAILED
             app.error = e.message
-            log.error("Error occurred during application ${app.id} creation.") { e }
+            log.error("Error occurred during application ${app.id} creation.", e)
         }
         app.updatedAt = now()
         applicationRepository.save(app)
@@ -58,7 +60,7 @@ class DeploymentService(
         } catch (e: AWSException) {
             app.state = ApplicationState.UPDATE_FAILED
             app.error = e.message
-            log.error("Error occurred during application ${app.id} update.") { e }
+            log.error("Error occurred during application ${app.id} update.", e)
         }
         app.updatedAt = now()
         applicationRepository.save(app)
@@ -77,7 +79,7 @@ class DeploymentService(
         } catch (e: AWSException) {
             app.state = ApplicationState.DELETE_FAILED
             app.error = e.message
-            log.error("Error occurred during application ${app.id} delete.") { e }
+            log.error("Error occurred during application ${app.id} delete.", e)
         }
         app.updatedAt = now()
 

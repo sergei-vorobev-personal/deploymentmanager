@@ -1,11 +1,6 @@
 package com.kineto.deploymentmanager.model
 
-import jakarta.persistence.Entity
-import jakarta.persistence.Table
-
 import jakarta.persistence.*
-import org.hibernate.annotations.CreationTimestamp
-import org.hibernate.annotations.UpdateTimestamp
 import java.time.Instant
 
 @Entity
@@ -28,6 +23,8 @@ class Application(
 
     @Column(nullable = false)
     var s3Bucket: String,
+
+    var url: String? = null,
 
     @Column(nullable = false, updatable = false)
     var createdAt: Instant = Instant.now(),

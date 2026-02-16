@@ -6,6 +6,7 @@ import com.kineto.deploymentmanager.model.ApplicationState
 import org.springframework.core.io.ClassPathResource
 import org.springframework.mock.web.MockMultipartFile
 import org.springframework.web.multipart.MultipartFile
+import org.testcontainers.shaded.org.bouncycastle.oer.its.ieee1609dot2.EndEntityType.app
 
 val application: (ApplicationState) -> Application = { state ->
     Application(
@@ -13,6 +14,9 @@ val application: (ApplicationState) -> Application = { state ->
         functionName = "test-app-function",
         state = state,
         s3Key = "s3key",
+        apiId = "api-id",
+        apiResourceId = "api-resource-id",
+        deploymentId = "deployment-id",
         s3Bucket = "s3bucket"
     )
 }

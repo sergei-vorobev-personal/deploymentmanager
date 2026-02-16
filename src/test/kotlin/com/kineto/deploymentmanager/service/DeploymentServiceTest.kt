@@ -13,8 +13,7 @@ import org.mockito.ArgumentCaptor
 import org.mockito.Captor
 import org.mockito.InjectMocks
 import org.mockito.Mock
-import org.mockito.Mockito.verify
-import org.mockito.Mockito.`when`
+import org.mockito.Mockito.*
 import org.mockito.junit.jupiter.MockitoExtension
 import java.util.*
 import kotlin.test.assertEquals
@@ -32,18 +31,27 @@ class DeploymentServiceTest(
 
     @Test
     fun `create should create lambda and update state`() {
-        val app = application(CREATE_REQUESTED)
+        val app = application(CREATE_REQUESTED).apply {
+            apiId = null
+            apiResourceId = null
+            deploymentId = null
+        }
         `when`(applicationRepository.findById("test-app")).thenReturn(Optional.of(app))
         `when`(
             awsFacadeService.createLambda(app.functionName, app.s3Key, app.s3Bucket)
         ).thenReturn(ACTIVE)
-
+        `when`(awsFacadeService.createAPIGWProxy(app.functionName)).thenReturn(
+            GWCreationResponse("rest-api-id", "resource-id", "deployment-id")
+        )
         service.create("test-app")
 
         verify(applicationRepository).save(captor.capture())
         val updatedApp = captor.allValues.first()
 
         assertEquals(ACTIVE, updatedApp.state)
+        assertEquals("rest-api-id", app.apiId)
+        assertEquals("resource-id", app.apiResourceId)
+        assertEquals("deployment-id", app.deploymentId)
     }
 
     @Test
@@ -56,6 +64,8 @@ class DeploymentServiceTest(
 
         service.create("test-app")
 
+        verify(awsFacadeService).createLambda(app.functionName, app.s3Key, app.s3Bucket)
+        verifyNoMoreInteractions(awsFacadeService)
         verify(applicationRepository).save(captor.capture())
         val updatedApp = captor.allValues.first()
 
@@ -118,6 +128,7 @@ class DeploymentServiceTest(
         service.delete("test-app")
 
         verify(awsFacadeService).deleteLambda(app.functionName)
+        verify(awsFacadeService).deleteApiGwResource(app.apiResourceId, app.apiId)
         verify(applicationRepository).save(captor.capture())
         val updatedApp = captor.allValues.first()
 
@@ -134,6 +145,8 @@ class DeploymentServiceTest(
 
         service.delete("test-app")
 
+        verify(awsFacadeService).deleteLambda(app.functionName)
+        verifyNoMoreInteractions(awsFacadeService)
         verify(applicationRepository).save(captor.capture())
         val updatedApp = captor.allValues.first()
 

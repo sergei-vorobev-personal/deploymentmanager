@@ -10,29 +10,28 @@ import com.kineto.deploymentmanager.model.ApplicationState.*
 import com.kineto.deploymentmanager.repository.ApplicationRepository
 import mu.KotlinLogging
 import org.springframework.data.repository.findByIdOrNull
-import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
 import org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE
 import org.springframework.http.ResponseEntity
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
-import org.springframework.util.MultiValueMap
+import org.springframework.web.reactive.function.client.WebClient
 import software.amazon.awssdk.http.HttpStatusCode.NOT_FOUND
 import java.util.*
+
 
 private val log = KotlinLogging.logger {}
 
 @Service
 class ApplicationService(
-    private val awsFacadeService: AWSFacadeService,
+    private val webClient: WebClient,
     private val kafkaProducer: KafkaProducer,
     private val applicationRepository: ApplicationRepository,
 ) {
-    fun invoke(
-        name: String,
-        params: MultiValueMap<String, String>,
-    ): ResponseEntity<String> {
-        val app = applicationRepository.findByIdOrNull(name) ?: throw APIException.ApplicationNotFoundException(name)
+
+    fun callLambda(name: String): ResponseEntity<String> {
+        val app = applicationRepository.findByIdOrNull(name)
+            ?: throw APIException.ApplicationNotFoundException(name)
         if (app.state == DELETED || app.state == DELETE_REQUESTED) {
             return ResponseEntity
                 .status(NOT_FOUND)
@@ -43,21 +42,23 @@ class ApplicationService(
                 .status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body("Application $name is not available")
         }
-        if (app.state != ACTIVE) {
+        if (app.state != ACTIVE || app.url == null) {
             return ResponseEntity
                 .status(SERVICE_UNAVAILABLE)
                 .body("Application $name is not ready yet")
         }
-        log.info { "Invoking Lambda function ${app.functionName} for application ${app.id} with parameters ${params}" }
-        val lambdaResponse = awsFacadeService.invokeLambda(app.functionName, params)
-        val headers = HttpHeaders()
-        lambdaResponse.headers?.let { headers.setAll(it) }
-        val body = lambdaResponse.body
-        log.debug { "Application ${app.id} response body: $body" }
+        log.info { "Invoking Lambda function ${app.functionName} for application ${app.id} via URL: ${app.url}" }
+
+        val response = webClient.get()
+            .uri(app.url)
+            .retrieve()
+            .toEntity(String::class.java)
+            .block()
+
         return ResponseEntity
-            .status(lambdaResponse.statusCode)
-            .headers(headers)
-            .body(body)
+            .status(response!!.statusCode)
+            .headers(response.headers)
+            .body(response.body)
     }
 
     @Transactional
