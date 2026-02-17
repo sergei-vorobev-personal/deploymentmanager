@@ -69,7 +69,7 @@ class ApplicationTest {
             name = appName,
             subpath = "",
             params = params,
-        ).body!!
+        )!!.body!!
         assertEquals("Hello World from Lambda!", lambdaResponseBody)
 
         val updatedZipFile: MultipartFile = MultipartFileTestUtil.fromResource("sample/helloworld-updated.zip")
@@ -95,7 +95,7 @@ class ApplicationTest {
             name = appName,
             subpath = "",
             params = params,
-        ).body!!
+        )!!.body!!
         assertEquals("Hello World from Lambda! Updated!", updatedLambdaResponseBody)
 
         // delete

@@ -26,7 +26,7 @@ class ProxyService(
         name: String,
         subpath: String,
         params: MultiValueMap<String, String>,
-    ): ResponseEntity<String> {
+    ): ResponseEntity<String>? {
         val app = applicationRepository.findByIdOrNull(name)
             ?: throw APIException.ApplicationNotFoundException(name)
         if (app.state == DELETED || app.state == DELETE_REQUESTED) {
@@ -46,17 +46,12 @@ class ProxyService(
         }
         log.info { "Invoking Lambda function ${app.functionName} for application ${app.id} via URL: ${app.url}" }
 
-        val response = webClient.get()
+        return webClient.get()
             .uri("${app.url!!}$subpath") {
                 it.queryParams(params).build()
             }
             .retrieve()
             .toEntity(String::class.java)
             .block()
-
-        return ResponseEntity
-            .status(response!!.statusCode)
-            .headers(response.headers)
-            .body(response.body)
     }
 }

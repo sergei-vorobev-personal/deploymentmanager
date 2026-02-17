@@ -1,7 +1,7 @@
 package com.kineto.deploymentmanager.rest
 
 
-import com.kineto.deploymentmanager.exception.AWSException
+import com.kineto.deploymentmanager.exception.APIException
 import com.kineto.deploymentmanager.service.ProxyService
 import org.junit.jupiter.api.Test
 import org.mockito.Mockito.`when`
@@ -29,6 +29,22 @@ class ProxyControllerTest {
         `when`(
             proxyService.callLambda(
                 name = appName,
+                subpath = "",
+                params = MultiValueMapAdapter(mapOf<String, List<String>>())
+            )
+        ).thenReturn(ResponseEntity.ok("invoked"))
+
+        mockMvc.perform(get("/proxy/$appName"))
+            .andExpect(status().isOk)
+            .andExpect(content().string("invoked"))
+    }
+
+    @Test
+    fun `callLambda with path and params should return string from service`() {
+        val appName = "myApp"
+        `when`(
+            proxyService.callLambda(
+                name = appName,
                 subpath = "/path",
                 params = MultiValueMapAdapter(mapOf("name" to listOf("1")))
             )
@@ -48,10 +64,10 @@ class ProxyControllerTest {
                 subpath = "/path",
                 params = MultiValueMapAdapter(mapOf("name" to listOf("1")))
             )
-        ).thenThrow(AWSException.LambdaException(appName))
+        ).thenThrow(APIException.ApplicationNotFoundException(appName))
 
         mockMvc.perform(get("/proxy/$appName/path?name=1"))
-            .andExpect(status().isInternalServerError)
-            .andExpect(jsonPath("$.error").value("AWS Lambda error: myApp"))
+            .andExpect(status().isNotFound)
+            .andExpect(jsonPath("$.error").value("Application myApp not found."))
     }
 }

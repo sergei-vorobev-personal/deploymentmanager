@@ -17,7 +17,7 @@ class ProxyController(
         @PathVariable("name") name: String,
         @RequestParam params: MultiValueMap<String, String>,
         request: HttpServletRequest,
-    ): ResponseEntity<String> {
+    ): ResponseEntity<String>? {
         val subpath = request.requestURL.toString().substringAfter("/proxy/$name")
         return proxyService.callLambda(name, subpath, params)
     }

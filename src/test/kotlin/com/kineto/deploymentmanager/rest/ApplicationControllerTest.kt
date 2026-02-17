@@ -4,7 +4,6 @@ package com.kineto.deploymentmanager.rest
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.kineto.deploymentmanager.dto.GetStatusResponse
 import com.kineto.deploymentmanager.exception.APIException
-import com.kineto.deploymentmanager.exception.AWSException
 import com.kineto.deploymentmanager.model.ApplicationState.*
 import com.kineto.deploymentmanager.service.ApplicationService
 import org.junit.jupiter.api.Test
@@ -70,9 +69,8 @@ class ApplicationControllerTest {
 
     @Test
     fun `handleAPIException should return correct error`() {
-        val exception = APIException.ApplicationNotFoundException("myApp")
         `when`(applicationService.getStatus("missingApp"))
-            .thenThrow(exception)
+            .thenThrow(APIException.ApplicationNotFoundException("myApp"))
 
         mockMvc.perform(get("/applications/missingApp/status"))
             .andExpect(status().isNotFound)

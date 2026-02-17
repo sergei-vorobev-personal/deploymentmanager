@@ -36,7 +36,7 @@ class ProxyServiceTest(
         val app = application(ACTIVE)
         `when`(applicationRepository.findById("test-app")).thenReturn(Optional.of(app))
 
-        val response = proxyService.callLambda("test-app", "/sub", params)
+        val response = proxyService.callLambda("test-app", "/sub", params)!!
 
         assertEquals(HttpStatus.OK, response.statusCode)
         assertEquals("ok", response.body)
@@ -59,7 +59,7 @@ class ProxyServiceTest(
         `when`(applicationRepository.findById("test-app"))
             .thenReturn(Optional.of(application(DELETED)))
 
-        val response = proxyService.callLambda("test-app", "/sub", params)
+        val response = proxyService.callLambda("test-app", "/sub", params)!!
 
         assertEquals(HttpStatus.NOT_FOUND, response.statusCode)
         assertEquals(response.body!!, "Application test-app has been deleted")
@@ -70,7 +70,7 @@ class ProxyServiceTest(
         `when`(applicationRepository.findById("test-app"))
             .thenReturn(Optional.of(application(UPDATE_REQUESTED)))
 
-        val response = proxyService.callLambda("test-app", "/sub", params)
+        val response = proxyService.callLambda("test-app", "/sub", params)!!
 
         assertEquals(HttpStatus.SERVICE_UNAVAILABLE, response.statusCode)
         assertEquals(response.body!!, "Application test-app is not ready yet")
@@ -81,7 +81,7 @@ class ProxyServiceTest(
         `when`(applicationRepository.findById("test-app"))
             .thenReturn(Optional.of(application(FAILED)))
 
-        val response = proxyService.callLambda("test-app", "/sub", params)
+        val response = proxyService.callLambda("test-app", "/sub", params)!!
 
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.statusCode)
         assertEquals(response.body!!, "Application test-app is not available")
