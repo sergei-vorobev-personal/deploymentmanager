@@ -13,7 +13,7 @@ class ProxyController(
 ) {
 
     @GetMapping("/{name}/**")
-    fun invokeLambda(
+    fun callLambda(
         @PathVariable("name") name: String,
         @RequestParam params: MultiValueMap<String, String>,
         request: HttpServletRequest,

@@ -10,6 +10,7 @@ import com.kineto.deploymentmanager.model.ApplicationState.*
 import com.kineto.deploymentmanager.repository.ApplicationRepository
 import com.kineto.deploymentmanager.testfixtures.application
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.api.extension.ExtendWith
@@ -44,12 +45,19 @@ class ApplicationServiceTest(
         assertEquals(CREATE_REQUESTED, response.state)
         verify(kafkaProducer)
             .sendApplicationEvent("test-app", ApplicationEvent("test-app", ApplicationEventType.CREATE_REQUESTED))
+        verify(applicationRepository).save(captor.capture())
+        val app = captor.value
+        assertEquals(CREATE_REQUESTED, app.state)
+        assertEquals("key", app.s3Key)
+        assertEquals("bucket", app.s3Bucket)
+        assertTrue(app.functionName.startsWith("test-app-"))
     }
 
     @ParameterizedTest
     @EnumSource(ApplicationState::class, names = ["NEW", "DELETED", "CREATE_FAILED", "FAILED", "INACTIVE"])
     fun `requestDeployment sends kafka create event and updates application state`(state: ApplicationState) {
-        `when`(applicationRepository.findById("test-app")).thenReturn(Optional.of(application(state)))
+        val application = application(state)
+        `when`(applicationRepository.findById("test-app")).thenReturn(Optional.of(application))
 
         val response = applicationService.requestDeployment("test-app", "key", "bucket")
 
@@ -58,21 +66,34 @@ class ApplicationServiceTest(
             .sendApplicationEvent("test-app", ApplicationEvent("test-app", ApplicationEventType.CREATE_REQUESTED))
         verify(applicationRepository).save(captor.capture())
 
-        val updatedApp = captor.value
-        assertEquals("key", updatedApp.s3Key)
-        assertEquals("bucket", updatedApp.s3Bucket)
+        val reCreatedApp = captor.value
+        assertEquals(CREATE_REQUESTED, reCreatedApp.state)
+        assertEquals("key", reCreatedApp.s3Key)
+        assertEquals("bucket", reCreatedApp.s3Bucket)
+        assertEquals("bucket", reCreatedApp.s3Bucket)
+        assertEquals(application.functionName, reCreatedApp.functionName)
     }
 
     @ParameterizedTest
     @EnumSource(ApplicationState::class, names = ["ACTIVE", "UPDATE_FAILED"])
     fun `requestDeployment sends kafka update event and updates application state`(state: ApplicationState) {
-        `when`(applicationRepository.findById("test-app")).thenReturn(Optional.of(application(state)))
+        val application = application(state)
+        `when`(applicationRepository.findById("test-app")).thenReturn(Optional.of(application))
 
         val response = applicationService.requestDeployment("test-app", "key", "bucket")
 
         assertEquals(UPDATE_REQUESTED, response.state)
         verify(kafkaProducer)
             .sendApplicationEvent("test-app", ApplicationEvent("test-app", ApplicationEventType.UPDATE_REQUESTED))
+
+        verify(applicationRepository).save(captor.capture())
+
+        val updatedApp = captor.value
+        assertEquals(UPDATE_REQUESTED, updatedApp.state)
+        assertEquals("key", updatedApp.s3Key)
+        assertEquals("bucket", updatedApp.s3Bucket)
+        assertEquals("bucket", updatedApp.s3Bucket)
+        assertEquals(application.functionName, updatedApp.functionName)
     }
 
     @ParameterizedTest

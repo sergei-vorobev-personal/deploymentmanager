@@ -31,23 +31,23 @@ class ApplicationService(
         val app = applicationRepository.findByIdOrNull(name)?.apply {
             this.s3Key = s3Key
             this.s3Bucket = s3Bucket
-        } ?: applicationRepository.save(
-            Application(
-                id = name,
-                s3Key = s3Key,
-                s3Bucket = s3Bucket,
-                functionName = "${name}-${UUID.randomUUID()}",
-                state = NEW,
-            )
+            this.error = null
+        } ?: Application(
+            id = name,
+            s3Key = s3Key,
+            s3Bucket = s3Bucket,
+            functionName = "${name}-${UUID.randomUUID()}",
+            state = NEW,
         )
-        val (eventType, nextState) = when (app.state) {
+
+        return when (app.state) {
             NEW,
             DELETED,
             CREATE_FAILED,
             FAILED,
-            INACTIVE -> ApplicationEventType.CREATE_REQUESTED to CREATE_REQUESTED
+            INACTIVE -> requestCreate(app)
 
-            ACTIVE, UPDATE_FAILED -> ApplicationEventType.UPDATE_REQUESTED to UPDATE_REQUESTED
+            ACTIVE, UPDATE_FAILED -> requestUpdate(app)
 
             CREATE_REQUESTED,
             UPDATE_REQUESTED,
@@ -56,24 +56,6 @@ class ApplicationService(
 
             DELETE_FAILED -> throw APIException.DeletionFailedException(name)
         }
-        app.error = null
-        app.state = nextState
-        applicationRepository.save(app)
-
-        kafkaProducer.sendApplicationEvent(
-            key = name,
-            applicationEvent = ApplicationEvent(app.id, eventType)
-        )
-        if (eventType == ApplicationEventType.CREATE_REQUESTED) {
-            log.info { "Creation of $name requested. Location: $s3Bucket/$s3Key" }
-        } else {
-            log.info { "Update of $name requested. Location: $s3Bucket/$s3Key" }
-        }
-        return GetStatusResponse(
-            name = app.id,
-            state = app.state,
-            updatedAt = app.updatedAt
-        )
     }
 
     @Transactional(readOnly = true)
@@ -113,6 +95,42 @@ class ApplicationService(
             )
         )
         log.info { "Deletion of $name requested." }
+        return GetStatusResponse(
+            name = app.id,
+            state = app.state,
+            updatedAt = app.updatedAt
+        )
+    }
+
+    private fun requestCreate(
+        app: Application,
+    ): GetStatusResponse {
+        app.state = CREATE_REQUESTED
+        applicationRepository.save(app)
+
+        kafkaProducer.sendApplicationEvent(
+            key = app.id,
+            applicationEvent = ApplicationEvent(app.id, ApplicationEventType.CREATE_REQUESTED)
+        )
+        log.info { "Creation of ${app.id} requested. Location: ${app.s3Bucket}/${app.s3Key}" }
+        return GetStatusResponse(
+            name = app.id,
+            state = app.state,
+            updatedAt = app.updatedAt
+        )
+    }
+
+    private fun requestUpdate(
+        app: Application,
+    ): GetStatusResponse {
+        app.state = UPDATE_REQUESTED
+        applicationRepository.save(app)
+
+        kafkaProducer.sendApplicationEvent(
+            key = app.id,
+            applicationEvent = ApplicationEvent(app.id, ApplicationEventType.UPDATE_REQUESTED)
+        )
+        log.info { "Update of ${app.id} requested. Location: ${app.s3Bucket}/${app.s3Key}" }
         return GetStatusResponse(
             name = app.id,
             state = app.state,
