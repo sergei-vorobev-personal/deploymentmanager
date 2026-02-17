@@ -91,6 +91,22 @@ class DeploymentServiceTest(
     }
 
     @Test
+    fun `update should set state DELETED when couldn't update lambda because not found`() {
+        val app = application(UPDATE_REQUESTED)
+        `when`(applicationRepository.findById("test-app")).thenReturn(Optional.of(app))
+        `when`(
+            awsFacadeService.updateLambda(app.functionName, app.s3Key, app.s3Bucket)
+        ).thenThrow(AWSException.ResourceNotFoundException("aws error"))
+
+        service.update("test-app")
+
+        verify(applicationRepository).save(captor.capture())
+        val updatedApp = captor.allValues.first()
+
+        assertEquals(DELETED, updatedApp.state)
+    }
+
+    @Test
     fun `update should set state UPDATE_FAILED when couldn't update lambda`() {
         val app = application(UPDATE_REQUESTED)
         `when`(applicationRepository.findById("test-app")).thenReturn(Optional.of(app))
@@ -122,6 +138,24 @@ class DeploymentServiceTest(
         service.delete("test-app")
 
         verify(awsFacadeService).deleteLambda(app.functionName)
+        verify(applicationRepository).save(captor.capture())
+        val updatedApp = captor.allValues.first()
+
+        assertEquals(DELETED, updatedApp.state)
+    }
+
+    @Test
+    fun `delete should set state DELETED when resource not found`() {
+        val app = application(DELETE_REQUESTED)
+        `when`(applicationRepository.findById("test-app")).thenReturn(Optional.of(app))
+        `when`(
+            awsFacadeService.deleteLambda(app.functionName)
+        ).thenThrow(AWSException.ResourceNotFoundException("aws error"))
+
+        service.delete("test-app")
+
+        verify(awsFacadeService).deleteLambda(app.functionName)
+        verifyNoMoreInteractions(awsFacadeService)
         verify(applicationRepository).save(captor.capture())
         val updatedApp = captor.allValues.first()
 

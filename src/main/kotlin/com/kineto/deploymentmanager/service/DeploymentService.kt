@@ -2,7 +2,7 @@ package com.kineto.deploymentmanager.service
 
 import com.kineto.deploymentmanager.exception.APIException
 import com.kineto.deploymentmanager.exception.AWSException
-import com.kineto.deploymentmanager.model.ApplicationState
+import com.kineto.deploymentmanager.model.ApplicationState.*
 import com.kineto.deploymentmanager.repository.ApplicationRepository
 import mu.KotlinLogging
 import org.springframework.data.repository.findByIdOrNull
@@ -35,7 +35,7 @@ class DeploymentService(
             app.url = lambdaCreationResponse.url
             log.info { "Application ${app.id} created successfully. State: $lambdaCreationResponse" }
         } catch (e: AWSException) {
-            app.state = ApplicationState.CREATE_FAILED
+            app.state = CREATE_FAILED
             app.error = e.message
             log.error("Error occurred during application ${app.id} creation.", e)
         }
@@ -57,8 +57,11 @@ class DeploymentService(
             )
             app.state = lambdaState
             log.info { "Application ${app.id} updated successfully. State: $lambdaState" }
+        } catch (e: AWSException.ResourceNotFoundException) {
+            log.error("Application ${app.id} has been deleted.", e)
+            app.state = DELETED
         } catch (e: AWSException) {
-            app.state = ApplicationState.UPDATE_FAILED
+            app.state = UPDATE_FAILED
             app.error = e.message
             log.error("Error occurred during application ${app.id} update.", e)
         }
@@ -74,10 +77,13 @@ class DeploymentService(
             ?: throw APIException.ApplicationNotFoundException(applicationName)
         try {
             awsFacadeService.deleteLambda(app.functionName)
-            app.state = ApplicationState.DELETED
-            log.info { "Application ${app.id} deleted successfully." }
+            app.state = DELETED
+            log.info { "Application ${app.id} has been deleted successfully." }
+        } catch (e: AWSException.ResourceNotFoundException) {
+            log.error("Application ${app.id} has been already deleted.", e)
+            app.state = DELETED
         } catch (e: AWSException) {
-            app.state = ApplicationState.DELETE_FAILED
+            app.state = DELETE_FAILED
             app.error = e.message
             log.error("Error occurred during application ${app.id} delete.", e)
         }
