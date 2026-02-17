@@ -59,9 +59,8 @@ class ApplicationTest {
         assertEquals(ApplicationState.ACTIVE, status?.state)
 
         // invoke
-        val lambdaResponseBody = applicationController.invoke(
+        val lambdaResponseBody = applicationController.invokeLambda(
             name = appName,
-            params = MultiValueMapAdapter(mapOf("param1" to listOf("paramValue")))
         ).body!!
         assertEquals("Hello World from Lambda!", lambdaResponseBody)
 
@@ -84,9 +83,8 @@ class ApplicationTest {
 
 
         // invoke
-        val updatedLambdaResponseBody = applicationController.invoke(
+        val updatedLambdaResponseBody = applicationController.invokeLambda(
             name = appName,
-            params = MultiValueMapAdapter(mapOf("param1" to listOf("paramValue")))
         ).body!!
         assertEquals("Hello World from Lambda! Updated!", updatedLambdaResponseBody)
 

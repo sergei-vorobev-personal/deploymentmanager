@@ -30,13 +30,12 @@ class ApplicationControllerTest {
     private val objectMapper = jacksonObjectMapper()
 
     @Test
-    fun `invoke should return string from service`() {
+    fun `callLambda should return string from service`() {
         val appName = "myApp"
-        val params = MultiValueMapAdapter(mapOf("param1" to listOf("paramValue")))
-        `when`(applicationService.invoke(appName, params))
+        `when`(applicationService.callLambda(appName))
             .thenReturn(ResponseEntity.ok("invoked"))
 
-        mockMvc.perform(get("/applications/$appName?param1=paramValue"))
+        mockMvc.perform(get("/applications/$appName"))
             .andExpect(status().isOk)
             .andExpect(content().string("invoked"))
     }
@@ -113,11 +112,10 @@ class ApplicationControllerTest {
 
     @Test
     fun `handleAWSException should return correct error`() {
-        val params = MultiValueMapAdapter(mapOf("param1" to listOf("paramValue")))
-        `when`(applicationService.invoke("myApp", params))
+        `when`(applicationService.callLambda("myApp"))
             .thenThrow(AWSException.LambdaException("myApp"))
 
-        mockMvc.perform(get("/applications/myApp?param1=paramValue"))
+        mockMvc.perform(get("/applications/myApp"))
             .andExpect(status().isInternalServerError)
             .andExpect(jsonPath("$.error").value("AWS Lambda error: myApp"))
     }

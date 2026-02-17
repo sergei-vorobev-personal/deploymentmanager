@@ -14,9 +14,7 @@ val application: (ApplicationState) -> Application = { state ->
         functionName = "test-app-function",
         state = state,
         s3Key = "s3key",
-        apiId = "api-id",
-        apiResourceId = "api-resource-id",
-        deploymentId = "deployment-id",
+        url = "https://localhost:8080/",
         s3Bucket = "s3bucket"
     )
 }

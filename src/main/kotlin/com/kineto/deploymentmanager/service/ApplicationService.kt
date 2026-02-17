@@ -50,7 +50,7 @@ class ApplicationService(
         log.info { "Invoking Lambda function ${app.functionName} for application ${app.id} via URL: ${app.url}" }
 
         val response = webClient.get()
-            .uri(app.url)
+            .uri(app.url!!)
             .retrieve()
             .toEntity(String::class.java)
             .block()

@@ -1,8 +1,10 @@
 package com.kineto.deploymentmanager.service
 
+import com.kineto.deploymentmanager.dto.LambdaCreationResponse
 import com.kineto.deploymentmanager.exception.APIException
 import com.kineto.deploymentmanager.exception.AWSException
 import com.kineto.deploymentmanager.model.Application
+import com.kineto.deploymentmanager.model.ApplicationState
 import com.kineto.deploymentmanager.model.ApplicationState.*
 import com.kineto.deploymentmanager.repository.ApplicationRepository
 import com.kineto.deploymentmanager.testfixtures.application
@@ -31,27 +33,19 @@ class DeploymentServiceTest(
 
     @Test
     fun `create should create lambda and update state`() {
-        val app = application(CREATE_REQUESTED).apply {
-            apiId = null
-            apiResourceId = null
-            deploymentId = null
-        }
+        val app = application(CREATE_REQUESTED)
         `when`(applicationRepository.findById("test-app")).thenReturn(Optional.of(app))
         `when`(
-            awsFacadeService.createLambda(app.functionName, app.s3Key, app.s3Bucket)
-        ).thenReturn(ACTIVE)
-        `when`(awsFacadeService.createAPIGWProxy(app.functionName)).thenReturn(
-            GWCreationResponse("rest-api-id", "resource-id", "deployment-id")
-        )
+            awsFacadeService.createLambda("test-app", app.functionName, app.s3Key, app.s3Bucket)
+        ).thenReturn(LambdaCreationResponse(ACTIVE, "localhost"))
+
         service.create("test-app")
 
         verify(applicationRepository).save(captor.capture())
         val updatedApp = captor.allValues.first()
 
         assertEquals(ACTIVE, updatedApp.state)
-        assertEquals("rest-api-id", app.apiId)
-        assertEquals("resource-id", app.apiResourceId)
-        assertEquals("deployment-id", app.deploymentId)
+        assertEquals("localhost", app.url)
     }
 
     @Test
@@ -59,12 +53,12 @@ class DeploymentServiceTest(
         val app = application(CREATE_REQUESTED)
         `when`(applicationRepository.findById("test-app")).thenReturn(Optional.of(app))
         `when`(
-            awsFacadeService.createLambda(app.functionName, app.s3Key, app.s3Bucket)
+            awsFacadeService.createLambda("test-app", app.functionName, app.s3Key, app.s3Bucket)
         ).thenThrow(AWSException.LambdaException("aws error"))
 
         service.create("test-app")
 
-        verify(awsFacadeService).createLambda(app.functionName, app.s3Key, app.s3Bucket)
+        verify(awsFacadeService).createLambda("test-app", app.functionName, app.s3Key, app.s3Bucket)
         verifyNoMoreInteractions(awsFacadeService)
         verify(applicationRepository).save(captor.capture())
         val updatedApp = captor.allValues.first()
@@ -128,7 +122,6 @@ class DeploymentServiceTest(
         service.delete("test-app")
 
         verify(awsFacadeService).deleteLambda(app.functionName)
-        verify(awsFacadeService).deleteApiGwResource(app.apiResourceId, app.apiId)
         verify(applicationRepository).save(captor.capture())
         val updatedApp = captor.allValues.first()
 

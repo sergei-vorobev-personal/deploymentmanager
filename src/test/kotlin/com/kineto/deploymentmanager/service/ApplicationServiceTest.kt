@@ -9,7 +9,6 @@ import com.kineto.deploymentmanager.model.ApplicationState
 import com.kineto.deploymentmanager.model.ApplicationState.*
 import com.kineto.deploymentmanager.repository.ApplicationRepository
 import com.kineto.deploymentmanager.testfixtures.application
-import com.kineto.deploymentmanager.testfixtures.lambdaResponse
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
@@ -18,43 +17,43 @@ import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.EnumSource
 import org.mockito.ArgumentCaptor
 import org.mockito.Captor
-import org.mockito.InjectMocks
 import org.mockito.Mock
 import org.mockito.Mockito.*
 import org.mockito.junit.jupiter.MockitoExtension
 import org.springframework.http.HttpStatus
 import org.springframework.util.MultiValueMapAdapter
+import org.springframework.web.reactive.function.client.ClientResponse
+import org.springframework.web.reactive.function.client.ExchangeFunction
+import org.springframework.web.reactive.function.client.WebClient
+import reactor.core.publisher.Mono
 import java.util.*
 
 @ExtendWith(MockitoExtension::class)
 class ApplicationServiceTest(
-    @param:Mock private val awsFacadeService: AWSFacadeService,
     @param:Mock private val kafkaProducer: KafkaProducer,
     @param:Mock private val applicationRepository: ApplicationRepository,
 ) {
+
+    private val webClient = WebClient.builder().exchangeFunction(shortCircuitingExchangeFunction).build()
+
     @Captor
     lateinit var captor: ArgumentCaptor<Application>
 
-    @InjectMocks
-    private lateinit var applicationService: ApplicationService
+
+    private val applicationService = ApplicationService(webClient, kafkaProducer, applicationRepository)
 
     @Test
-    fun `invoke calls awsFacadeService and returns Lambda response`() {
+    fun `callLambda calls webClient and returns Lambda response`() {
         val app = application(ACTIVE)
-        val params = MultiValueMapAdapter(mapOf("param1" to listOf("paramValue")))
         `when`(applicationRepository.findById("test-app")).thenReturn(Optional.of(app))
-        `when`(awsFacadeService.invokeLambda(app.functionName, params)).thenReturn(lambdaResponse(200, "ok"))
 
-        val response =
-            applicationService.invoke("test-app", params)
+        val response = applicationService.callLambda("test-app")
 
         assertEquals(HttpStatus.OK, response.statusCode)
         assertEquals("ok", response.body)
         assertEquals(1, response.headers.size())
         assertEquals("application/json", response.headers["Content-Type"]!!.first())
 
-        verify(awsFacadeService).invokeLambda(app.functionName, params)
-        verifyNoMoreInteractions(awsFacadeService)
         verifyNoInteractions(kafkaProducer)
     }
 
@@ -65,56 +64,50 @@ class ApplicationServiceTest(
         `when`(applicationRepository.findById("test-app")).thenReturn(Optional.empty())
 
         val exception = assertThrows<APIException.ApplicationNotFoundException> {
-            applicationService.invoke("test-app", params)
+            applicationService.callLambda("test-app")
         }
         assertEquals("Application test-app not found.", exception.message)
 
-        verifyNoInteractions(kafkaProducer, awsFacadeService)
+        verifyNoInteractions(kafkaProducer)
     }
 
     @Test
     fun `invoke returns 404 if application deleted`() {
-        val params = MultiValueMapAdapter(mapOf("param1" to listOf("paramValue")))
-
         `when`(applicationRepository.findById("test-app"))
             .thenReturn(Optional.of(application(DELETED)))
 
-        val response = applicationService.invoke("test-app", params)
+        val response = applicationService.callLambda("test-app")
 
         assertEquals(HttpStatus.NOT_FOUND, response.statusCode)
         assertEquals(response.body!!, "Application test-app has been deleted")
 
-        verifyNoInteractions(awsFacadeService, kafkaProducer)
+        verifyNoInteractions(kafkaProducer)
     }
 
     @Test
     fun `invoke returns 503 if application not ready`() {
-        val params = MultiValueMapAdapter(mapOf("param1" to listOf("paramValue")))
-
         `when`(applicationRepository.findById("test-app"))
             .thenReturn(Optional.of(application(UPDATE_REQUESTED)))
 
-        val response = applicationService.invoke("test-app", params)
+        val response = applicationService.callLambda("test-app")
 
         assertEquals(HttpStatus.SERVICE_UNAVAILABLE, response.statusCode)
         assertEquals(response.body!!, "Application test-app is not ready yet")
 
-        verifyNoInteractions(awsFacadeService, kafkaProducer)
+        verifyNoInteractions(kafkaProducer)
     }
 
     @Test
     fun `invoke returns 500 if application not available`() {
-        val params = MultiValueMapAdapter(mapOf("param1" to listOf("paramValue")))
-
         `when`(applicationRepository.findById("test-app"))
             .thenReturn(Optional.of(application(FAILED)))
 
-        val response = applicationService.invoke("test-app", params)
+        val response = applicationService.callLambda("test-app")
 
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.statusCode)
         assertEquals(response.body!!, "Application test-app is not available")
 
-        verifyNoInteractions(awsFacadeService, kafkaProducer)
+        verifyNoInteractions(kafkaProducer)
     }
 
     @Test
@@ -127,8 +120,6 @@ class ApplicationServiceTest(
         assertEquals(CREATE_REQUESTED, response.state)
         verify(kafkaProducer)
             .sendApplicationEvent("test-app", ApplicationEvent("test-app", ApplicationEventType.CREATE_REQUESTED))
-
-        verifyNoInteractions(awsFacadeService)
     }
 
     @ParameterizedTest
@@ -141,7 +132,6 @@ class ApplicationServiceTest(
         assertEquals(CREATE_REQUESTED, response.state)
         verify(kafkaProducer)
             .sendApplicationEvent("test-app", ApplicationEvent("test-app", ApplicationEventType.CREATE_REQUESTED))
-        verifyNoInteractions(awsFacadeService)
         verify(applicationRepository).save(captor.capture())
 
         val updatedApp = captor.value
@@ -159,8 +149,6 @@ class ApplicationServiceTest(
         assertEquals(UPDATE_REQUESTED, response.state)
         verify(kafkaProducer)
             .sendApplicationEvent("test-app", ApplicationEvent("test-app", ApplicationEventType.UPDATE_REQUESTED))
-
-        verifyNoInteractions(awsFacadeService)
     }
 
     @ParameterizedTest
@@ -176,7 +164,7 @@ class ApplicationServiceTest(
         }
         assertEquals("Deployment in progress: test-app", exception.message)
 
-        verifyNoInteractions(kafkaProducer, awsFacadeService)
+        verifyNoInteractions(kafkaProducer)
     }
 
     @Test
@@ -188,7 +176,7 @@ class ApplicationServiceTest(
         assertEquals("test-app", response.name)
         assertEquals(ACTIVE, response.state)
 
-        verifyNoInteractions(kafkaProducer, awsFacadeService)
+        verifyNoInteractions(kafkaProducer)
     }
 
     @Test
@@ -200,7 +188,7 @@ class ApplicationServiceTest(
         }
 
         assertEquals("Application test-app not found.", exception.message)
-        verifyNoInteractions(kafkaProducer, awsFacadeService)
+        verifyNoInteractions(kafkaProducer)
     }
 
     @Test
@@ -213,7 +201,6 @@ class ApplicationServiceTest(
         assertEquals(DELETE_REQUESTED, response.state)
         verify(kafkaProducer)
             .sendApplicationEvent("test-app", ApplicationEvent("test-app", ApplicationEventType.DELETE_REQUESTED))
-        verifyNoInteractions(awsFacadeService)
     }
 
     @Test
@@ -225,6 +212,15 @@ class ApplicationServiceTest(
         }
 
         assertEquals("Application test-app not found.", exception.message)
-        verifyNoInteractions(kafkaProducer, awsFacadeService)
+    }
+
+    companion object {
+        val clientResponse: ClientResponse = ClientResponse
+            .create(HttpStatus.OK)
+            .header("Content-Type", "application/json")
+            .body("ok").build()
+        val shortCircuitingExchangeFunction = ExchangeFunction {
+            Mono.just(clientResponse)
+        }
     }
 }
