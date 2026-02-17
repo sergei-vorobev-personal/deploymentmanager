@@ -12,44 +12,40 @@ REST API application to manage AWS Lambdas using LocalStack in Docker:
 
 ```mermaid
 sequenceDiagram
-    participant Client
-    participant API
-    participant DB
-    participant Kafka
-    participant LambdaSDK as AWS SDK / Lambda
-     
-    %% 1) Create or update application
-    Client->>API: POST /applications?name,key,bucket
-    API->>DB: create new or get existing record
-    API->>Kafka: send create/update message
-    Kafka-->>LambdaSDK: create/update Lambda
-    LambdaSDK-->>DB: update status
-
-    %% 2) Get application status
-    Client->>API: GET /applications/{name}/status
-    API->>DB: fetch status
-    DB->>API: return status
-    API->>Client: return status
-
-    %% 3) Delete application
-    Client->>API: DELETE /applications/{name}
-    API->>Kafka: send delete message
-    Kafka-->>LambdaSDK: delete Lambda
-    LambdaSDK-->>DB: update status
-
-    %% 4) Invoke Lambda via API
-    Client->>API: GET /applications/{name}
-    API->>DB: get function name
-    DB->>API: return function name
-    API->>LambdaSDK: invoke Lambda
-    LambdaSDK->>API: Lambda response
-    API->>Client: return response
-
-    %% 5) Upload helper
-    Client->>API: POST /helper?zipFile,s3key,bucket
-    API->>AWS S3: upload zip file
-    AWS S3->>API: confirm upload
-    API->>Client: upload status
+  participant Client
+  participant API
+  participant DB
+  participant Kafka
+  participant AwsSDK as AWS SDK
+  participant Lambda
+%% 1) Create or update application
+  Client ->> API: POST /applications?name,key,bucket
+  API ->> DB: create new or get existing record
+  API ->> Kafka: send create/update message
+  Kafka -->> AwsSDK: create/update Lambda
+  AwsSDK -->> DB: update status
+%% 2) Get application status
+  Client ->> API: GET /applications/{name}/status
+  API ->> DB: fetch status
+  DB ->> API: return status
+  API ->> Client: return status
+%% 3) Delete application
+  Client ->> API: DELETE /applications/{name}
+  API ->> Kafka: send delete message
+  Kafka -->> AwsSDK: delete Lambda
+  AwsSDK -->> DB: update status
+%% 4) Invoke Lambda via API URL
+  Client ->> API: GET /applications/{name}
+  API ->> DB: get function URL
+  DB ->> API: return function URL
+  API ->> Lambda: call Lambda URL
+  Lambda ->> API: Lambda response
+  API ->> Client: return response
+%% 5) Upload helper
+  Client ->> API: POST /helper?zipFile,s3key,bucket
+  API ->> AWS S3: upload zip file
+  AWS S3 ->> API: confirm upload
+  API ->> Client: upload status
 ```
 ## Application Deployment State Diagram
 ```mermaid
