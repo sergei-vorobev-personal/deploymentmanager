@@ -17,15 +17,10 @@ import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.EnumSource
 import org.mockito.ArgumentCaptor
 import org.mockito.Captor
+import org.mockito.InjectMocks
 import org.mockito.Mock
 import org.mockito.Mockito.*
 import org.mockito.junit.jupiter.MockitoExtension
-import org.springframework.http.HttpStatus
-import org.springframework.util.MultiValueMapAdapter
-import org.springframework.web.reactive.function.client.ClientResponse
-import org.springframework.web.reactive.function.client.ExchangeFunction
-import org.springframework.web.reactive.function.client.WebClient
-import reactor.core.publisher.Mono
 import java.util.*
 
 @ExtendWith(MockitoExtension::class)
@@ -33,82 +28,11 @@ class ApplicationServiceTest(
     @param:Mock private val kafkaProducer: KafkaProducer,
     @param:Mock private val applicationRepository: ApplicationRepository,
 ) {
-
-    private val webClient = WebClient.builder().exchangeFunction(shortCircuitingExchangeFunction).build()
-
     @Captor
     lateinit var captor: ArgumentCaptor<Application>
 
-
-    private val applicationService = ApplicationService(webClient, kafkaProducer, applicationRepository)
-
-    @Test
-    fun `callLambda calls webClient and returns Lambda response`() {
-        val app = application(ACTIVE)
-        `when`(applicationRepository.findById("test-app")).thenReturn(Optional.of(app))
-
-        val response = applicationService.callLambda("test-app")
-
-        assertEquals(HttpStatus.OK, response.statusCode)
-        assertEquals("ok", response.body)
-        assertEquals(1, response.headers.size())
-        assertEquals("application/json", response.headers["Content-Type"]!!.first())
-
-        verifyNoInteractions(kafkaProducer)
-    }
-
-    @Test
-    fun `invoke throws exception when application not found`() {
-        val params = MultiValueMapAdapter(mapOf("param1" to listOf("paramValue")))
-
-        `when`(applicationRepository.findById("test-app")).thenReturn(Optional.empty())
-
-        val exception = assertThrows<APIException.ApplicationNotFoundException> {
-            applicationService.callLambda("test-app")
-        }
-        assertEquals("Application test-app not found.", exception.message)
-
-        verifyNoInteractions(kafkaProducer)
-    }
-
-    @Test
-    fun `invoke returns 404 if application deleted`() {
-        `when`(applicationRepository.findById("test-app"))
-            .thenReturn(Optional.of(application(DELETED)))
-
-        val response = applicationService.callLambda("test-app")
-
-        assertEquals(HttpStatus.NOT_FOUND, response.statusCode)
-        assertEquals(response.body!!, "Application test-app has been deleted")
-
-        verifyNoInteractions(kafkaProducer)
-    }
-
-    @Test
-    fun `invoke returns 503 if application not ready`() {
-        `when`(applicationRepository.findById("test-app"))
-            .thenReturn(Optional.of(application(UPDATE_REQUESTED)))
-
-        val response = applicationService.callLambda("test-app")
-
-        assertEquals(HttpStatus.SERVICE_UNAVAILABLE, response.statusCode)
-        assertEquals(response.body!!, "Application test-app is not ready yet")
-
-        verifyNoInteractions(kafkaProducer)
-    }
-
-    @Test
-    fun `invoke returns 500 if application not available`() {
-        `when`(applicationRepository.findById("test-app"))
-            .thenReturn(Optional.of(application(FAILED)))
-
-        val response = applicationService.callLambda("test-app")
-
-        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.statusCode)
-        assertEquals(response.body!!, "Application test-app is not available")
-
-        verifyNoInteractions(kafkaProducer)
-    }
+    @InjectMocks
+    private lateinit var applicationService: ApplicationService
 
     @Test
     fun `requestDeployment creates new application in DB if not exists and sends kafka creation event`() {
@@ -212,15 +136,5 @@ class ApplicationServiceTest(
         }
 
         assertEquals("Application test-app not found.", exception.message)
-    }
-
-    companion object {
-        val clientResponse: ClientResponse = ClientResponse
-            .create(HttpStatus.OK)
-            .header("Content-Type", "application/json")
-            .body("ok").build()
-        val shortCircuitingExchangeFunction = ExchangeFunction {
-            Mono.just(clientResponse)
-        }
     }
 }

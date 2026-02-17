@@ -4,6 +4,7 @@ import com.kineto.deploymentmanager.dto.GetStatusResponse
 import com.kineto.deploymentmanager.model.ApplicationState
 import com.kineto.deploymentmanager.rest.ApplicationController
 import com.kineto.deploymentmanager.rest.HelperController
+import com.kineto.deploymentmanager.service.ProxyService
 import com.kineto.deploymentmanager.testfixtures.MultipartFileTestUtil
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -27,6 +28,9 @@ class ApplicationTest {
     private lateinit var applicationController: ApplicationController
 
     @Autowired
+    private lateinit var proxyService: ProxyService
+
+    @Autowired
     private lateinit var helperController: HelperController
 
     companion object {
@@ -35,6 +39,8 @@ class ApplicationTest {
             .withExposedService("postgres", 5432)
             .withExposedService("kafka", 9092)
             .withExposedService("localstack", 4566)
+
+        val params = MultiValueMapAdapter(mapOf<String, List<String>>())
     }
 
     @Test
@@ -59,8 +65,10 @@ class ApplicationTest {
         assertEquals(ApplicationState.ACTIVE, status?.state)
 
         // invoke
-        val lambdaResponseBody = applicationController.invokeLambda(
+        val lambdaResponseBody = proxyService.callLambda(
             name = appName,
+            subpath = "",
+            params = params,
         ).body!!
         assertEquals("Hello World from Lambda!", lambdaResponseBody)
 
@@ -83,8 +91,10 @@ class ApplicationTest {
 
 
         // invoke
-        val updatedLambdaResponseBody = applicationController.invokeLambda(
+        val updatedLambdaResponseBody = proxyService.callLambda(
             name = appName,
+            subpath = "",
+            params = params,
         ).body!!
         assertEquals("Hello World from Lambda! Updated!", updatedLambdaResponseBody)
 

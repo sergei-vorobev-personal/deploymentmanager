@@ -19,6 +19,6 @@ class HelperController(
         @RequestParam("key") key: String,
         @RequestParam("bucket") bucket: String,
     ) {
-        return helperService.uploadToS3(zipFile, key, bucket)
+        helperService.uploadToS3(zipFile, key, bucket)
     }
 }

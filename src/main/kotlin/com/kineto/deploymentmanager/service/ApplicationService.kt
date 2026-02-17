@@ -10,13 +10,8 @@ import com.kineto.deploymentmanager.model.ApplicationState.*
 import com.kineto.deploymentmanager.repository.ApplicationRepository
 import mu.KotlinLogging
 import org.springframework.data.repository.findByIdOrNull
-import org.springframework.http.HttpStatus
-import org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE
-import org.springframework.http.ResponseEntity
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
-import org.springframework.web.reactive.function.client.WebClient
-import software.amazon.awssdk.http.HttpStatusCode.NOT_FOUND
 import java.util.*
 
 
@@ -24,43 +19,9 @@ private val log = KotlinLogging.logger {}
 
 @Service
 class ApplicationService(
-    private val webClient: WebClient,
     private val kafkaProducer: KafkaProducer,
     private val applicationRepository: ApplicationRepository,
 ) {
-
-    fun callLambda(name: String): ResponseEntity<String> {
-        val app = applicationRepository.findByIdOrNull(name)
-            ?: throw APIException.ApplicationNotFoundException(name)
-        if (app.state == DELETED || app.state == DELETE_REQUESTED) {
-            return ResponseEntity
-                .status(NOT_FOUND)
-                .body("Application $name has been deleted")
-        }
-        if (app.state == FAILED) {
-            return ResponseEntity
-                .status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body("Application $name is not available")
-        }
-        if (app.state != ACTIVE || app.url == null) {
-            return ResponseEntity
-                .status(SERVICE_UNAVAILABLE)
-                .body("Application $name is not ready yet")
-        }
-        log.info { "Invoking Lambda function ${app.functionName} for application ${app.id} via URL: ${app.url}" }
-
-        val response = webClient.get()
-            .uri(app.url!!)
-            .retrieve()
-            .toEntity(String::class.java)
-            .block()
-
-        return ResponseEntity
-            .status(response!!.statusCode)
-            .headers(response.headers)
-            .body(response.body)
-    }
-
     @Transactional
     fun requestDeployment(
         name: String,
@@ -95,6 +56,7 @@ class ApplicationService(
 
             DELETE_FAILED -> throw APIException.DeletionFailedException(name)
         }
+        app.error = null
         app.state = nextState
         applicationRepository.save(app)
 
@@ -140,6 +102,9 @@ class ApplicationService(
                 updatedAt = app.updatedAt
             )
         }
+        app.error = null
+        app.state = DELETE_REQUESTED
+        applicationRepository.save(app)
         kafkaProducer.sendApplicationEvent(
             key = name,
             applicationEvent = ApplicationEvent(
@@ -147,8 +112,6 @@ class ApplicationService(
                 type = ApplicationEventType.DELETE_REQUESTED
             )
         )
-        app.state = DELETE_REQUESTED
-        applicationRepository.save(app)
         log.info { "Deletion of $name requested." }
         return GetStatusResponse(
             name = app.id,

@@ -1,5 +1,6 @@
 package com.kineto.deploymentmanager.messaging
 
+import com.kineto.deploymentmanager.exception.APIException
 import mu.KotlinLogging
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.kafka.core.KafkaTemplate
@@ -23,7 +24,7 @@ class KafkaProducer(
                 log.error(ex) {
                     "Failed to send deployment event. key=$key topic=$topic"
                 }
-                throw ex
+                throw APIException.InternalApplicationException("Failed to send deployment event")
             } else {
                 log.info {
                     "Event sent successfully. key=$key partition=${result.recordMetadata.partition()} offset=${result.recordMetadata.offset()}"

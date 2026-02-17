@@ -135,12 +135,12 @@ class AWSFacadeService(
         } catch (e: S3Exception) {
             log.error(e.awsErrorDetails().toString(), e)
             throw AWSException.S3Exception(e.awsErrorDetails().toString())
+        } catch (e: SdkException) {
+            throw AWSException.SDKException(e.message ?: "Unknown SDK error")
         } catch (e: Exception) {
             val message = e.message ?: "Unknown exception"
             log.error(message, e)
-            throw APIException.InternalApplicationException(message)
-        } catch (e: SdkException) {
-            throw AWSException.SDKException(e.message ?: "Unknown SDK error")
+            throw AWSException.SDKException(message)
         }
     }
 
@@ -172,7 +172,7 @@ class AWSFacadeService(
         } catch (e: Exception) {
             val message = e.message ?: "Unknown exception"
             log.error(message, e)
-            throw APIException.InternalApplicationException(message)
+            throw AWSException.SDKException(message)
         }
     }
 

@@ -11,23 +11,15 @@ import org.springframework.web.bind.annotation.*
 class ApplicationController(
     private val applicationService: ApplicationService,
 ) {
-
-    @GetMapping("/{name}")
-    fun invokeLambda(
-        @PathVariable("name") name: String,
-    ): ResponseEntity<String> = applicationService.callLambda(name)
-
     @PostMapping
     fun deploy(
         @RequestParam("name") name: String,
         @RequestParam("s3Key") s3Key: String,
         @RequestParam("s3Bucket") s3Bucket: String,
-    ): ResponseEntity<GetStatusResponse> {
-        return ResponseEntity(
-            applicationService.requestDeployment(name, s3Key, s3Bucket),
-            HttpStatus.ACCEPTED
-        )
-    }
+    ): ResponseEntity<GetStatusResponse> = ResponseEntity(
+        applicationService.requestDeployment(name, s3Key, s3Bucket),
+        HttpStatus.ACCEPTED
+    )
 
     @GetMapping("/{name}/status")
     fun getStatus(
@@ -37,10 +29,8 @@ class ApplicationController(
     @DeleteMapping("/{name}")
     fun delete(
         @PathVariable("name") name: String,
-    ): ResponseEntity<GetStatusResponse> {
-        return ResponseEntity(
-            applicationService.requestDeletion(name),
-            HttpStatus.ACCEPTED
-        )
-    }
+    ): ResponseEntity<GetStatusResponse> = ResponseEntity(
+        applicationService.requestDeletion(name),
+        HttpStatus.ACCEPTED
+    )
 }

@@ -11,12 +11,10 @@ import org.junit.jupiter.api.Test
 import org.mockito.Mockito.`when`
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest
-import org.springframework.http.ResponseEntity
 import org.springframework.test.context.bean.override.mockito.MockitoBean
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.*
-import org.springframework.util.MultiValueMapAdapter
 
 @WebMvcTest(ApplicationController::class)
 class ApplicationControllerTest {
@@ -28,17 +26,6 @@ class ApplicationControllerTest {
     private lateinit var applicationService: ApplicationService
 
     private val objectMapper = jacksonObjectMapper()
-
-    @Test
-    fun `callLambda should return string from service`() {
-        val appName = "myApp"
-        `when`(applicationService.callLambda(appName))
-            .thenReturn(ResponseEntity.ok("invoked"))
-
-        mockMvc.perform(get("/applications/$appName"))
-            .andExpect(status().isOk)
-            .andExpect(content().string("invoked"))
-    }
 
     @Test
     fun `deploy should return accepted with status response`() {
@@ -108,15 +95,5 @@ class ApplicationControllerTest {
         )
             .andExpect(status().isInternalServerError)
             .andExpect(jsonPath("$.error").value("Deployment in progress: myApp"))
-    }
-
-    @Test
-    fun `handleAWSException should return correct error`() {
-        `when`(applicationService.callLambda("myApp"))
-            .thenThrow(AWSException.LambdaException("myApp"))
-
-        mockMvc.perform(get("/applications/myApp"))
-            .andExpect(status().isInternalServerError)
-            .andExpect(jsonPath("$.error").value("AWS Lambda error: myApp"))
     }
 }
