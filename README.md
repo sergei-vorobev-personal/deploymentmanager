@@ -35,7 +35,7 @@ sequenceDiagram
   Kafka -->> AwsSDK: delete Lambda
   AwsSDK -->> DB: update status
 %% 4) Invoke Lambda via API URL
-  Client ->> API: GET /applications/{name}
+  Client ->> API: GET /proxy/{name}/**
   API ->> DB: get function URL
   DB ->> API: return function URL
   API ->> Lambda: call Lambda URL
