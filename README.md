@@ -85,7 +85,7 @@ sequenceDiagram
 ```mermaid
 stateDiagram-v2
   [*] --> CREATE_REQUESTED: create request
-  [*] --> UPDATE_REQUESTED: update request
+  [*] --> CREATE_FAILED: create request
   CREATE_REQUESTED --> CREATING: lambda created, pending
   CREATING --> ACTIVE: lambda is active
   CREATING --> CREATING: polling
@@ -96,6 +96,7 @@ stateDiagram-v2
   UPDATING --> ACTIVE: lambda is active
   UPDATING --> UPDATING: polling
   UPDATE_REQUESTED --> UPDATE_FAILED: failure
+  [*] --> UPDATE_FAILED: update request
   UPDATE_FAILED --> UPDATE_REQUESTED: retry
   ACTIVE --> DELETE_REQUESTED: delete request
   DELETE_REQUESTED --> DELETED: lambda deleted
