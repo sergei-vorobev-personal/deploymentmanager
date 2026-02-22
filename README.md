@@ -8,8 +8,8 @@ REST API application to manage AWS Lambdas using LocalStack in Docker:
 - Re-deploy updated files if already deployed
 - Reverse proxy for Lambda invocation
 
-## Sequence Diagram
-
+## Sequence Diagrams
+### Deployment Request (Create/Update)
 ```mermaid
 sequenceDiagram
   participant Client
@@ -17,56 +17,73 @@ sequenceDiagram
   participant DB
   participant Kafka
   participant AwsSDK as AWS SDK
-  participant Lambda
 %% 1) Create or update application
   Client ->> API: POST /applications?name,key,bucket
   API ->> DB: create new or get existing record
   API ->> Kafka: send create/update message
+  API ->> Client: 202 CREATE_REQUESTED/UPDATE_REQUESTED
   Kafka -->> AwsSDK: create/update Lambda
-  AwsSDK -->> DB: update status
-%% 2) Get application status
+  AwsSDK -->> DB: update status to CREATING/UPDATING
+```
+
+### Lambda Deployment Polling
+```mermaid
+sequenceDiagram
+  participant PollingService
+  participant DB
+  participant AwsSDK as AWS SDK
+  
+  PollingService ->> DB: get pending deployments
+  PollingService ->> AwsSDK: get function configuration
+  PollingService ->> DB: update application state
+  PollingService ->> PollingService: reschedule if needed
+```
+
+### Get App Status
+```mermaid
+sequenceDiagram
+  participant Client
+  participant API
+  participant DB
   Client ->> API: GET /applications/{name}/status
   API ->> DB: fetch status
   DB ->> API: return status
   API ->> Client: return status
-%% 3) Delete application
+```
+
+### Delete App
+```mermaid
+sequenceDiagram
+  participant Client
+  participant API
+  participant DB
+  participant Kafka
+  participant AwsSDK as AWS SDK
   Client ->> API: DELETE /applications/{name}
   API ->> Kafka: send delete message
+  API ->> Client: 202 DELETE_REQUESTED
   Kafka -->> AwsSDK: delete Lambda
   AwsSDK -->> DB: update status
-%% 4) Invoke Lambda via API URL
-  Client ->> API: GET /proxy/{name}/**
-  API ->> DB: get function URL
-  DB ->> API: return function URL
-  API ->> Lambda: call Lambda URL
-  Lambda ->> API: Lambda response
-  API ->> Client: return response
-%% 5) Upload helper
-  Client ->> API: POST /helper?zipFile,s3key,bucket
-  API ->> AWS S3: upload zip file
-  AWS S3 ->> API: confirm upload
-  API ->> Client: upload status
 ```
+
 ## Application Deployment State Diagram
 ```mermaid
 stateDiagram-v2
-    [*] --> NEW : create request
-    [*] --> UPDATE_REQUESTED : update request
-    NEW --> CREATE_REQUESTED : create request
-
-    CREATE_REQUESTED --> ACTIVE : success
-    CREATE_REQUESTED --> CREATE_FAILED : failure
-    CREATE_FAILED --> CREATE_REQUESTED : retry
-
-    ACTIVE --> UPDATE_REQUESTED : update request
-    UPDATE_REQUESTED --> ACTIVE : success
-    UPDATE_REQUESTED --> UPDATE_FAILED : failure
-    UPDATE_FAILED --> UPDATE_REQUESTED : retry
-
-    ACTIVE --> DELETE_REQUESTED : delete request
-    DELETE_REQUESTED --> DELETED : success
-    DELETE_REQUESTED --> DELETE_FAILED : failure
-    DELETE_FAILED --> DELETE_REQUESTED : retry
+  [*] --> CREATE_REQUESTED: create request
+  [*] --> UPDATE_REQUESTED: update request
+  CREATE_REQUESTED --> CREATING: lambda created, pending
+  CREATING --> ACTIVE: lambda is active
+  CREATE_REQUESTED --> CREATE_FAILED: failure
+  CREATE_FAILED --> CREATE_REQUESTED: retry
+  ACTIVE --> UPDATE_REQUESTED: update request
+  UPDATE_REQUESTED --> UPDATING: lambda updated, pending
+  UPDATING --> ACTIVE: lambda is active
+  UPDATE_REQUESTED --> UPDATE_FAILED: failure
+  UPDATE_FAILED --> UPDATE_REQUESTED: retry
+  ACTIVE --> DELETE_REQUESTED: delete request
+  DELETE_REQUESTED --> DELETED: success
+  DELETE_REQUESTED --> DELETE_FAILED: failure
+  DELETE_FAILED --> DELETE_REQUESTED: retry
 ```
 
 ## Requirements
