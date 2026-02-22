@@ -96,10 +96,12 @@ stateDiagram-v2
   UPDATING --> ACTIVE: lambda is active
   UPDATING --> UPDATING: polling
   UPDATE_REQUESTED --> UPDATE_FAILED: failure
+  [*] --> ACTIVE: update request
   [*] --> UPDATE_FAILED: update request
   UPDATE_FAILED --> UPDATE_REQUESTED: retry
   ACTIVE --> DELETE_REQUESTED: delete request
   DELETE_REQUESTED --> DELETED: lambda deleted
+  [*] --> DELETED: create request
   DELETE_REQUESTED --> DELETE_FAILED: failure
   DELETE_FAILED --> DELETE_REQUESTED: retry
 ```
