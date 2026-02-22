@@ -1,8 +1,7 @@
 package com.kineto.deploymentmanager.dto
 
-import com.kineto.deploymentmanager.model.ApplicationState
-
 data class LambdaCreationResponse(
-    val state: ApplicationState,
+    val state: LambdaState,
     val url: String? = null,
+    val error: String? = null,
 )

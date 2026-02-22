@@ -29,12 +29,12 @@ class ProxyService(
     ): ResponseEntity<String>? {
         val app = applicationRepository.findByIdOrNull(name)
             ?: throw APIException.ApplicationNotFoundException(name)
-        if (app.state == DELETED || app.state == DELETE_REQUESTED) {
+        if (app.state == DELETED || app.state == DELETE_REQUESTED || app.state == DELETE_FAILED) {
             return ResponseEntity
                 .status(NOT_FOUND)
                 .body("Application $name has been deleted")
         }
-        if (app.state == FAILED) {
+        if (app.state == CREATE_FAILED || app.state == UPDATE_FAILED) {
             return ResponseEntity
                 .status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body("Application $name is not available")

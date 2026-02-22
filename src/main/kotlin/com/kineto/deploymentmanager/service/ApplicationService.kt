@@ -43,16 +43,15 @@ class ApplicationService(
         return when (app.state) {
             NEW,
             DELETED,
-            CREATE_FAILED,
-            FAILED,
-            INACTIVE -> requestCreate(app)
+            CREATE_FAILED -> requestCreate(app)
 
             ACTIVE, UPDATE_FAILED -> requestUpdate(app)
 
+            CREATING,
+            UPDATING,
             CREATE_REQUESTED,
             UPDATE_REQUESTED,
-            DELETE_REQUESTED,
-            PENDING -> throw APIException.DeploymentInProgressException(name)
+            DELETE_REQUESTED-> throw APIException.DeploymentInProgressException(name)
 
             DELETE_FAILED -> throw APIException.DeletionFailedException(name)
         }

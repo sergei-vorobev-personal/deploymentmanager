@@ -1,7 +1,6 @@
 package com.kineto.deploymentmanager.service
 
 import com.kineto.deploymentmanager.exception.APIException
-import com.kineto.deploymentmanager.model.Application
 import com.kineto.deploymentmanager.model.ApplicationState.*
 import com.kineto.deploymentmanager.repository.ApplicationRepository
 import com.kineto.deploymentmanager.testfixtures.application
@@ -9,10 +8,8 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.api.extension.ExtendWith
-import org.mockito.ArgumentCaptor
-import org.mockito.Captor
 import org.mockito.Mock
-import org.mockito.Mockito.*
+import org.mockito.Mockito.`when`
 import org.mockito.junit.jupiter.MockitoExtension
 import org.springframework.http.HttpStatus
 import org.springframework.util.MultiValueMapAdapter
@@ -79,7 +76,7 @@ class ProxyServiceTest(
     @Test
     fun `invoke returns 500 if application not available`() {
         `when`(applicationRepository.findById("test-app"))
-            .thenReturn(Optional.of(application(FAILED)))
+            .thenReturn(Optional.of(application(CREATE_FAILED)))
 
         val response = proxyService.callLambda("test-app", "/sub", params)!!
 

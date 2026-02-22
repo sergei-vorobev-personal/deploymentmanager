@@ -54,7 +54,7 @@ class ApplicationServiceTest(
     }
 
     @ParameterizedTest
-    @EnumSource(ApplicationState::class, names = ["NEW", "DELETED", "CREATE_FAILED", "FAILED", "INACTIVE"])
+    @EnumSource(ApplicationState::class, names = ["NEW", "DELETED", "CREATE_FAILED"])
     fun `requestDeployment sends kafka create event and updates application state`(state: ApplicationState) {
         val application = application(state)
         `when`(applicationRepository.findById("test-app")).thenReturn(Optional.of(application))
@@ -99,7 +99,7 @@ class ApplicationServiceTest(
     @ParameterizedTest
     @EnumSource(
         ApplicationState::class,
-        names = ["CREATE_REQUESTED", "UPDATE_REQUESTED", "DELETE_REQUESTED", "PENDING"]
+        names = ["CREATE_REQUESTED", "UPDATE_REQUESTED", "DELETE_REQUESTED", "CREATING", "UPDATING"]
     )
     fun `requestDeployment throws DeploymentInProgressException for in-progress state`(state: ApplicationState) {
         `when`(applicationRepository.findById("test-app")).thenReturn(Optional.of(application(state)))

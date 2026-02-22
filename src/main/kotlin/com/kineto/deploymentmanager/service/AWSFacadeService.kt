@@ -2,9 +2,9 @@ package com.kineto.deploymentmanager.service
 
 import com.kineto.deploymentmanager.config.AWSProperties
 import com.kineto.deploymentmanager.dto.LambdaCreationResponse
-import com.kineto.deploymentmanager.exception.APIException
+import com.kineto.deploymentmanager.dto.LambdaState
+import com.kineto.deploymentmanager.dto.LambdaStateResponse
 import com.kineto.deploymentmanager.exception.AWSException
-import com.kineto.deploymentmanager.model.ApplicationState
 import mu.KotlinLogging
 import org.springframework.stereotype.Service
 import software.amazon.awssdk.core.exception.SdkException
@@ -26,15 +26,14 @@ class AWSFacadeService(
     private val s3Client: S3Client,
 ) {
 
-    fun createLambda(
+    fun createLambdaAsync(
         applicationName: String,
         functionName: String,
         s3Key: String,
         s3Bucket: String,
     ): LambdaCreationResponse {
         awsLambdaCall {
-            val waiter = lambdaClient.waiter()
-            lambdaClient.createFunction {
+            val response = lambdaClient.createFunction {
                 it.functionName(functionName)
                     .runtime(Runtime.NODEJS18_X)
                     .role(awsProperties.lambdaRoleArn)
@@ -44,64 +43,46 @@ class AWSFacadeService(
                         codeBuilder.s3Bucket(s3Bucket).s3Key(s3Key)
                     }
             }
-            val responseOrException = waiter.waitUntilFunctionActiveV2 {
+            val urlConfig = lambdaClient.createFunctionUrlConfig {
                 it.functionName(functionName)
-            }.matched()
-            if (responseOrException.response().isPresent) {
-                val state = responseOrException.response().get().configuration().state()
-                log.info("Lambda function $functionName created, state: $state")
-                val urlConfig = lambdaClient.createFunctionUrlConfig {
-                    it.functionName(functionName)
-                    it.authType("NONE")
-                }
-                log.info("Function $functionName created with url config: ${urlConfig.functionUrl()}")
-                return LambdaCreationResponse(
-                    state = ApplicationState.valueOf(state.name),
-                    url = urlConfig.functionUrl()
-                )
-            } else if (responseOrException.exception().isPresent) {
-                val exception = responseOrException.exception().get()
-                log.error("Lambda function $functionName creation failed.", exception)
-                val error = exception.localizedMessage
-                throw AWSException.LambdaException(error)
-            } else {
-                log.error("Lambda function $functionName creation failed.")
-                return LambdaCreationResponse(
-                    state = ApplicationState.CREATE_FAILED,
-                )
+                it.authType("NONE")
             }
+            val state = when (response.state()) {
+                State.PENDING -> LambdaState.PENDING
+                State.ACTIVE -> LambdaState.ACTIVE
+                else -> LambdaState.FAILED
+            }
+            val error = if (LambdaState.FAILED == state) response.stateReason() else null
+            return LambdaCreationResponse(
+                state = state,
+                url = urlConfig.functionUrl(),
+                error = error
+            )
         }
     }
 
-    fun updateLambda(
+    fun updateLambdaAsync(
         functionName: String,
         s3Key: String,
         s3Bucket: String,
-    ): ApplicationState {
+    ): LambdaCreationResponse {
         awsLambdaCall {
-            val waiter = lambdaClient.waiter()
-            lambdaClient.updateFunctionCode {
+            val response = lambdaClient.updateFunctionCode {
                 it.functionName(functionName)
                     .publish(true)
                     .s3Bucket(s3Bucket)
                     .s3Key(s3Key)
             }
-            val responseOrException = waiter.waitUntilFunctionUpdatedV2 {
-                it.functionName(functionName)
-            }.matched()
-            if (responseOrException.response().isPresent) {
-                val state = responseOrException.response().get().configuration().state()
-                log.info("Lambda function $functionName updated, state: $state")
-                return ApplicationState.valueOf(state.name)
-            } else if (responseOrException.exception().isPresent) {
-                val exception = responseOrException.exception().get()
-                log.error("Lambda function $functionName update failed.", exception)
-                val message = exception.localizedMessage
-                throw AWSException.LambdaException(message)
-            } else {
-                log.error("Lambda function $functionName update failed.")
-                return ApplicationState.UPDATE_FAILED
+            val state = when (response.state()) {
+                State.PENDING -> LambdaState.PENDING
+                State.ACTIVE -> LambdaState.ACTIVE
+                else -> LambdaState.FAILED
             }
+            val error = if (LambdaState.FAILED == state) response.stateReason() else null
+            return LambdaCreationResponse(
+                state = state,
+                error = error
+            )
         }
     }
 
@@ -109,6 +90,20 @@ class AWSFacadeService(
         awsLambdaCall {
             lambdaClient.deleteFunction { it.functionName(functionName) }
             log.info { "Lambda function $functionName deleted" }
+        }
+    }
+
+    fun getLambdaState(functionName: String): LambdaStateResponse {
+        awsLambdaCall {
+            val response = lambdaClient.getFunctionConfiguration { it.functionName(functionName) }
+            val state = when (response.state()) {
+                State.PENDING -> LambdaState.PENDING
+                State.ACTIVE -> LambdaState.ACTIVE
+                else -> LambdaState.FAILED
+            }
+            val reason = response.stateReason()
+
+            return LambdaStateResponse(state, reason)
         }
     }
 
