@@ -38,7 +38,7 @@ class DeploymentService(
                 s3Key = app.s3Key,
                 s3Bucket = app.s3Bucket,
             )
-            val state = when(lambdaCreationResponse.state) {
+            val state = when (lambdaCreationResponse.state) {
                 LambdaState.ACTIVE -> ACTIVE
                 LambdaState.PENDING -> CREATING
                 LambdaState.FAILED -> CREATE_FAILED
@@ -77,7 +77,7 @@ class DeploymentService(
                 s3Key = app.s3Key,
                 s3Bucket = app.s3Bucket,
             )
-            val state = when(lambdaCreationResponse.state) {
+            val state = when (lambdaCreationResponse.state) {
                 LambdaState.ACTIVE -> ACTIVE
                 LambdaState.PENDING -> UPDATING
                 LambdaState.FAILED -> UPDATE_FAILED
