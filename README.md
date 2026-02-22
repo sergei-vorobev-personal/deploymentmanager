@@ -39,6 +39,21 @@ sequenceDiagram
   PollingService ->> PollingService: reschedule if needed
 ```
 
+### Proxy Lambda call
+```mermaid
+sequenceDiagram
+  participant Client
+  participant API
+  participant DB
+  participant AWSLambda
+
+  Client ->> API: /proxy/{appName}
+  API ->> DB: get function URL if ready
+  API ->> AWSLambda: invoke Lambda via URL
+  AWSLambda ->> API: Lambda response
+  API ->> Client: response
+```
+
 ### Get App Status
 ```mermaid
 sequenceDiagram
