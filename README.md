@@ -84,26 +84,47 @@ sequenceDiagram
 ## Application Deployment State Diagram
 ```mermaid
 stateDiagram-v2
-  [*] --> CREATE_REQUESTED: create request
-  [*] --> CREATE_FAILED: create request
-  CREATE_REQUESTED --> CREATING: lambda created, pending
-  CREATING --> ACTIVE: lambda is active
-  CREATING --> CREATING: polling
-  CREATE_REQUESTED --> CREATE_FAILED: failure
-  CREATE_FAILED --> CREATE_REQUESTED: retry
-  ACTIVE --> UPDATE_REQUESTED: update request
-  UPDATE_REQUESTED --> UPDATING: lambda updated, pending
-  UPDATING --> ACTIVE: lambda is active
-  UPDATING --> UPDATING: polling
-  UPDATE_REQUESTED --> UPDATE_FAILED: failure
-  [*] --> ACTIVE: update request
-  [*] --> UPDATE_FAILED: update request
-  UPDATE_FAILED --> UPDATE_REQUESTED: retry
-  ACTIVE --> DELETE_REQUESTED: delete request
-  DELETE_REQUESTED --> DELETED: lambda deleted
-  [*] --> DELETED: create request
-  DELETE_REQUESTED --> DELETE_FAILED: failure
-  DELETE_FAILED --> DELETE_REQUESTED: retry
+
+  [*] --> CREATE_REQUESTED
+
+%% --------------------
+%% CREATE FLOW
+%% --------------------
+  CREATE_REQUESTED --> CREATING : request accepted
+  CREATE_REQUESTED --> CREATE_FAILED : failure
+
+  CREATING --> CREATING : polling
+  CREATING --> ACTIVE : lambda active
+
+  CREATE_FAILED --> CREATE_REQUESTED : retry
+
+
+%% --------------------
+%% ACTIVE STATE
+%% --------------------
+  ACTIVE --> UPDATE_REQUESTED : update request
+  ACTIVE --> DELETE_REQUESTED : delete request
+
+
+%% --------------------
+%% UPDATE FLOW
+%% --------------------
+  UPDATE_REQUESTED --> UPDATING : request accepted
+  UPDATE_REQUESTED --> UPDATE_FAILED : failure
+
+  UPDATING --> UPDATING : polling
+  UPDATING --> ACTIVE : lambda active
+
+  UPDATE_FAILED --> UPDATE_REQUESTED : retry
+
+
+%% --------------------
+%% DELETE FLOW
+%% --------------------
+  DELETE_REQUESTED --> DELETED : lambda deleted
+  DELETE_REQUESTED --> DELETE_FAILED : failure
+
+  DELETE_FAILED --> DELETE_REQUESTED : retry
 ```
 
 ## Requirements
